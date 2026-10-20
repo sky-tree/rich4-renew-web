@@ -16,7 +16,7 @@ import { chipMode, fmtMoney } from '../finale';
 /** Money as shown here: chips in the finale (19 §2), else 元 (no unit). */
 const money = (n: number) => fmtMoney(n, false);
 import { audio, Sfx } from '../audio';
-import { ASSETS } from '../assets';
+import { absAssetUrl, ASSETS } from '../assets';
 import { hallSeen } from '../casino-sprite';
 import './casino.css';
 
@@ -35,7 +35,7 @@ const ART: Record<string, string> = {
 /** The tables' cartoon props (tools/tycoon-art/props.py → maps/remake/casino/props/), set as CSS variables on the page. */
 const PROP_NAMES = ['roulette-bowl', 'roulette-turret', 'roulette-ball', 'dice-cup', 'dice-plate', 'card-back', 'card-shoe', 'squeeze-frame',
   'chip-blue', 'chip-red', 'chip-green', 'chip-purple', 'felt-roulette', 'felt-blackjack', 'felt-baccarat', 'felt-holdem', 'felt-sicbo', 'felt-lobby'];
-const PROP = (n: string) => `${ASSETS}/maps/remake/casino/props/${n}.webp`;
+const PROP = (n: string) => absAssetUrl(`${ASSETS}/maps/remake/casino/props/${n}.webp`);
 const PROP_VARS = PROP_NAMES.map(n => `--p-${n}:url('${PROP(n)}')`).join(';');
 /** The halls' plates (the build picker's strip, tools/tycoon-art/casino.py): maps/remake/casino/plate-<type>.webp. */
 export const PLATE = (type: number) => `${ASSETS}/maps/remake/casino/plate-${type}.webp`;

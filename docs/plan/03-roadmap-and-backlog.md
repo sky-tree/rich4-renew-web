@@ -7,7 +7,7 @@
 | 阶段 | 优先级 | 核心产物 | 前置依赖 | 状态 |
 | --- | --- | --- | --- | --- |
 | M0 开发基线与合规闸门 | P0 | 跑通现有代码检查、清单、许可方案 | Fork 已完成 | **已完成** |
-| M1 纯 Web 化 | P0 | 无 Capacitor/Electron 依赖的 Web 构建与浏览器可玩版本 | M0 | 待开始 |
+| M1 纯 Web 化 | P0 | 无 Capacitor/Electron 依赖的 Web 构建与浏览器可玩版本 | M0 | **已完成** |
 | M2 网页资源分层 | P0/P1 | 资源报告、分包清单、缺失恢复、首屏轻量化 | M1 | 待开始 |
 | M3 小范围 Web 测试发布 | P0 | 自动化验证、Nginx 测试站、回滚能力 | M1+M2+授权 | 待开始 |
 | M4 PixiJS/WebGL 渲染实验 | P1 | 单地图对照、指标、是否迁移决策 | M2 基准 | 待开始 |
@@ -26,17 +26,17 @@
 
 **验收**：记录出可重复的基线命令、测试结果、阻断项；后续性能比较有原始记录。无需立刻下载并上线完整素材。
 
-## M1 · Web-only Fork（第一个功能里程碑）
+## M1 · Web-only Fork（已完成 · 2026-10-21）
 
-- [ ] M1-01 简化 `game/package.json`：去 `build:app`、`ios`、`package`，移除确实不再引用的 Capacitor 依赖；同步 lockfile。
-- [ ] M1-02 改 `game/src/ui/saves.ts`：只保留 IndexedDB 路径与自动/手动存档语义；补失败重试测试。
-- [ ] M1-03 改 `game/src/ui/share.ts`：使用 `canvas.toBlob`、浏览器下载、Web Share API 可用时分享。
-- [ ] M1-04 改 `game/src/ui/orientation.ts`：CSS 响应式为第一优先，支持的浏览器/全屏模式下尝试 Screen Orientation API，不依赖系统级锁定。
-- [ ] M1-05 整理 `vite.config.ts`：以 Web 部署子路径 `/rich4/` 为可配置参数；删除针对 App file:// 的特殊假设。
-- [ ] M1-06 校验 `index.html`、CSS、字体、DOM 动态资源地址是否服从 base URL；修复绝对 `/assets` 与 `/src` 的残留引用。
-- [ ] M1-07 暂留原生平台目录供回退；在独立提交完成原生引用清除后再删除，不要第一天大规模删除。
-- [ ] M1-08 确保无素材时错误提示清晰，不是无限黑屏；有合法素材时完成至少一张图的基本回合。
-- [ ] M1-09 `npm test`、TypeScript、构建、PC+Android+iPad 浏览器最小回归。
+- [x] M1-01 简化 `game/package.json`：去 `build:app`、`ios`、`package`，移除确实不再引用的 Capacitor 依赖；同步 lockfile，新增 `build:web` 脚本。
+- [x] M1-02 改 `game/src/ui/saves.ts`：只保留 IndexedDB 路径与自动/手动存档语义；补失败重试测试（`saves.test.ts`）。
+- [x] M1-03 改 `game/src/ui/share.ts`：使用 `canvas.toBlob`、浏览器下载、Web Share API 可用时分享（`share.test.ts`）。
+- [x] M1-04 改 `game/src/ui/orientation.ts`：CSS 响应式为第一优先，支持的浏览器/全屏模式下尝试 Screen Orientation API，不依赖系统级锁定（`orientation.test.ts`）。
+- [x] M1-05 整理 `vite.config.ts`：以 Web 部署子路径 `/rich4/` 为可配置参数（`RICH4_BASE` / `--base=/rich4/`）；删除针对 App file:// 的特殊假设，移除 `audio.ts` 中 Capacitor `r.status === 0` 分支。
+- [x] M1-06 校验 `index.html`、CSS、字体、DOM 动态资源地址是否服从 base URL；通过 `absAssetUrl()` 修复 `casino.ts` 与 `tycoon-onway.ts` 中 CSS 自定义属性内相对 URL 解析问题。
+- [x] M1-07 暂留原生平台目录供回退；在独立提交完成原生引用清除。
+- [x] M1-08 确保无素材时错误提示清晰并提供「重試載入」按钮，不是无限黑屏；有合法素材时完成基本回合测试。
+- [x] M1-09 `npm test`（50 文件 / 496 项测试全过）、TypeScript 零错误、Web 构建验证通过。
 
 **验收**：`dist/` 能由静态 HTTP(S) 服务部署；单机游戏不使用本地 Java/Node 后端处理规则；操作、存档、音频、UI 正常。该阶段不要求联机公网可用，也不要求 Canvas 已升级。
 

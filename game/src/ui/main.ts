@@ -101,7 +101,9 @@ async function setup() {
     [maps, bank] = await Promise.all([mapList(), bank ?? SpriteBank.create()]);
     await Promise.all([initLang(), warmThumbs(maps)]); // 語言 (lang.ts): 简体 converts the page from here on
   } catch (e) {
-    app.innerHTML = `<div class="loading error">${(e as Error).message}</div>`;
+    const msg = (e as Error)?.message || String(e);
+    app.innerHTML = `<div class="loading error"><div style="text-align:center;max-width:520px;padding:24px"><div style="margin-bottom:16px">遊戲資源載入失敗：${msg}</div><button class="primary" id="retry-boot">重試載入</button></div></div>`;
+    document.getElementById('retry-boot')?.addEventListener('click', () => void setup());
     return;
   }
   title();

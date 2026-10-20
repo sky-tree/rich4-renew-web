@@ -4,6 +4,17 @@ import { parseBoard, type Board, type RawMap } from '../core/board';
 export const ASSETS = `${import.meta.env.BASE_URL}assets`;
 
 /**
+ * Resolves an asset path to an absolute URL against the document base URI when running in the browser,
+ * preventing relative `url(...)` inside CSS custom properties from resolving against bundled `assets/*.css`.
+ */
+export function absAssetUrl(src: string): string {
+  try {
+    if (typeof document !== 'undefined' && document.baseURI) return new URL(src, document.baseURI).href;
+  } catch { /* fallback */ }
+  return src;
+}
+
+/**
  * A map of the list. `kind`: 'orig' the eight original maps (map-N.json), 'custom' the 自製地圖: the remake's own maps
  * (maps/remake/index.json: 東京, 大阪, 札幌, 九州, 沖繩, 大富翁城, with their own `data` / `image` paths). The old
  * workshop maps (editor/export_custom.py, maps/custom/index.json) are no longer offered (2026-10-17): they are listed

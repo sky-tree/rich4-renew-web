@@ -1,10 +1,8 @@
 /**
- * Screen orientation chosen in the settings (the remake's addition): 自動 follows the phone, 橫屏 / 豎屏 lock the
- * app. In the iOS app the lock turns the interface even while the phone's own rotation lock is on, because the app
- * then supports only that orientation. In a browser it works only where the page may lock (Android in full
- * screen); elsewhere the layout keeps following the window.
+ * Screen orientation chosen in the settings: 自動 follows the window, 橫屏 / 豎屏 attempt the standard Web
+ * Screen Orientation API where supported (e.g. fullscreen mobile browsers) and set `data-orientation` on `<html>`
+ * so responsive CSS remains the primary layout mechanism.
  */
-import { ScreenOrientation } from '@capacitor/screen-orientation';
 
 export const ORIENTATIONS = ['自動', '橫屏', '豎屏'];
 const KEY = 'rich4.orientation';
@@ -14,13 +12,23 @@ export function orientationMode(): number {
 }
 
 export async function setOrientation(mode: number): Promise<void> {
-  try { localStorage.setItem(KEY, String(mode)); } catch { /* not kept */ }
-  await applyOrientation(mode);
+  const normalized = mode === 1 || mode === 2 ? mode : 0;
+  try { localStorage.setItem(KEY, String(normalized)); } catch { /* not kept */ }
+  await applyOrientation(normalized);
 }
 
 export async function applyOrientation(mode = orientationMode()): Promise<void> {
+  const normalized = mode === 1 || mode === 2 ? mode : 0;
+  if (typeof document !== 'undefined' && document.documentElement) {
+    document.documentElement.dataset.orientation = normalized === 1 ? 'landscape' : normalized === 2 ? 'portrait' : 'auto';
+  }
   try {
-    if (mode === 0) await ScreenOrientation.unlock();
-    else await ScreenOrientation.lock({ orientation: mode === 1 ? 'landscape' : 'portrait' });
-  } catch { /* the browser refuses outside full screen */ }
+    const so = (typeof screen !== 'undefined' ? screen.orientation : undefined) as (ScreenOrientation & {
+      lock?: (orientation: 'landscape' | 'portrait') => Promise<void>;
+      unlock?: () => void;
+    }) | undefined;
+    if (!so) return;
+    if (normalized === 0) so.unlock?.();
+    else await so.lock?.(normalized === 1 ? 'landscape' : 'portrait');
+  } catch { /* browsers outside fullscreen or desktop browsers refuse orientation lock */ }
 }

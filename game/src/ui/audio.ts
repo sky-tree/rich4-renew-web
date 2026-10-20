@@ -246,8 +246,7 @@ class AudioEngine {
     if (!b) {
       const ctx = this.ctx;
       b = !ctx ? Promise.resolve(null) : fetch(this.url(kind, id))
-        // Capacitor's iOS asset handler answers local audio files with status 0 (the body is there): accept it.
-        .then(r => (r.ok || r.status === 0 ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+        .then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
         .then(data => new Promise<AudioBuffer>((ok, no) => ctx.decodeAudioData(data, ok, no)))
         .catch(() => null);
       if (ctx) this.buffers.set(key, b);

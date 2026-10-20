@@ -1,11 +1,8 @@
 /**
- * Save slots and the slot picker. In the app (iOS / Android) every slot is a file in the app's own data folder
- * (`saves/slot-N.json`, written to a temporary file first and swapped in, the previous version kept as
- * `slot-N.prev.json`): iOS WebKit's IndexedDB can lose its connection after the app was in the background and then
- * fails or hangs on every write — the user lost an hour of play that way (2026-10-19). IndexedDB stays for the
- * browser, and for the slots saved before (copied over to files once, the first time the slots are read).
+ * Save slots and the slot picker (Web IndexedDB).
+ * Database `rich4`, object store `saves`: 7 slots where 0 is normal mode auto-save and 6 is 大富豪模式 auto-save,
+ * plus a 5-turn ring buffer per automatic slot.
  */
-import { Capacitor } from '@capacitor/core';
 import { CHARACTERS } from '../core/characters';
 import type { SaveData } from '../core/save';
 import type { SpriteBank } from './sprites';
@@ -21,7 +18,6 @@ const isAuto = (i: number) => i === AUTO_SLOT || i === TYCOON_AUTO_SLOT;
 type AnySave = SaveData & { kind?: 'tycoon'; world?: { date: number; current: number }; cities?: { game: { date: number } }[] };
 
 const DB = 'rich4', STORE = 'saves';
-const native = () => Capacitor.isNativePlatform();
 
 /** A promise that gives up after `ms` (a stuck IndexedDB never answers). */
 function within<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
@@ -31,7 +27,7 @@ function within<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
   });
 }
 
-// ---------------------------------------------------------------- IndexedDB (browser; older app saves)
+// ---------------------------------------------------------------- IndexedDB (browser)
 
 let conn: Promise<IDBDatabase> | null = null;
 function db(): Promise<IDBDatabase> {
@@ -63,71 +59,23 @@ async function idb<T>(mode: IDBTransactionMode, run: (s: IDBObjectStore) => IDBR
   catch { conn = null; return go(); } // one fresh connection, then give up
 }
 
-// ---------------------------------------------------------------- files (the app)
-
-type FS = typeof import('@capacitor/filesystem');
-let fsMod: Promise<FS> | null = null;
-const fs = () => (fsMod ??= import('@capacitor/filesystem'));
-const path = (slot: number, kind = '') => `saves/slot-${slot}${kind}.json`;
-
-async function fileRead(p: string): Promise<SaveData | undefined> {
-  const { Filesystem, Directory, Encoding } = await fs();
-  try {
-    const r = await Filesystem.readFile({ path: p, directory: Directory.Data, encoding: Encoding.UTF8 });
-    return JSON.parse(typeof r.data === 'string' ? r.data : await r.data.text()) as SaveData;
-  } catch { return undefined; }
-}
-
-async function fileWrite(slot: number, data: SaveData): Promise<void> {
-  const { Filesystem, Directory, Encoding } = await fs();
-  const dir = Directory.Data, text = JSON.stringify(data);
-  const tmp = path(slot, '.tmp'), cur = path(slot), prev = path(slot, '.prev');
-  await Filesystem.writeFile({ path: tmp, data: text, directory: dir, encoding: Encoding.UTF8, recursive: true });
-  // Read it back before it replaces anything: a slot is never left without a whole save.
-  const back = await Filesystem.readFile({ path: tmp, directory: dir, encoding: Encoding.UTF8 });
-  if ((typeof back.data === 'string' ? back.data.length : -1) !== text.length) throw new Error('save file incomplete');
-  const exists = async (p: string) => Filesystem.stat({ path: p, directory: dir }).then(() => true, () => false);
-  if (await exists(cur)) {
-    if (await exists(prev)) await Filesystem.deleteFile({ path: prev, directory: dir });
-    await Filesystem.rename({ from: cur, to: prev, directory: dir, toDirectory: dir });
-  }
-  await Filesystem.rename({ from: tmp, to: cur, directory: dir, toDirectory: dir });
-}
-
-/**
- * Slots saved in IndexedDB before the files: copied to files once (a slot that already has a file keeps it), then
- * IndexedDB is not touched again in the app — a stuck one can't slow the save list down.
- */
-const MIGRATED = 'rich4.savesToFiles';
-let migration: Promise<void> | null = null;
-function migrate(): Promise<void> {
-  return (migration ??= (async () => {
-    try { if (localStorage.getItem(MIGRATED)) return; } catch { /* no storage: try below */ }
-    for (let slot = 0; slot < SLOTS; slot++) {
-      if (await fileRead(path(slot))) continue;
-      const old = await idb<SaveData | undefined>('readonly', s => s.get(slot)).catch(() => undefined);
-      if (old) await fileWrite(slot, old);
-    }
-    try { localStorage.setItem(MIGRATED, '1'); } catch { /* tried again next start */ }
-  })().catch(() => { migration = null; }));
-}
-
-/** The slot's save: the file, else an interrupted swap's temporary file, else the previous version. */
-async function nativeRead(slot: number): Promise<SaveData | undefined> {
-  await migrate();
-  for (const kind of ['', '.tmp', '.prev']) { const d = await fileRead(path(slot, kind)); if (d) return d; }
-  return undefined;
-}
-
 let writing: Promise<unknown> = Promise.resolve();
 /** Writes a slot (one write at a time, in order); resolves once the save is really stored. */
 export function writeSlot(slot: number, data: SaveData): Promise<void> {
-  const run = () => (native() ? within(fileWrite(slot, data), 15000, 'save file') : idb('readwrite', s => s.put(data, slot)).then(() => {}));
+  const run = () => idb('readwrite', s => s.put(data, slot)).then(() => {});
   const p = writing.then(run, run);
   writing = p.catch(() => {});
   return p;
 }
-export const readSlot = (slot: number): Promise<SaveData | undefined> => (native() ? nativeRead(slot) : idb<SaveData | undefined>('readonly', s => s.get(slot)));
+export const readSlot = (slot: number): Promise<SaveData | undefined> => idb<SaveData | undefined>('readonly', s => s.get(slot));
+
+/** Reset internal connection & ring state for unit tests. */
+export function __resetSavesForTest(): void {
+  conn = null;
+  ringAt.clear();
+  writing = Promise.resolve();
+  autoChain = Promise.resolve();
+}
 
 /**
  * The automatic saves keep the last five turns (the user 2026-10-19): the automatic slot itself and four more
