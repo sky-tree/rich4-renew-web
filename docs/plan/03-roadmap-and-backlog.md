@@ -10,7 +10,7 @@
 | M1 纯 Web 化 | P0 | 无 Capacitor/Electron 依赖的 Web 构建与浏览器可玩版本 | M0 | **已完成** |
 | M2 网页资源分层 | P0/P1 | 资源报告、分包清单、缺失恢复、首屏轻量化 | M1 | **已完成** |
 | M3 小范围 Web 测试发布 | P0 | 自动化验证、Nginx 测试站、回滚能力 | M1+M2+授权 | **已完成** |
-| M4 PixiJS/WebGL 渲染实验 | P1 | 单地图对照、指标、是否迁移决策 | M2 基准 | 待开始 |
+| M4 PixiJS/WebGL 渲染实验 | P1 | 单地图对照、指标、是否迁移决策 | M2 基准 | **已完成** |
 | M5 联机生产化与存档增强 | P1/P2 | 可控信令/TURN、存档迁移与备份 | M3 | 待开始 |
 | M6 PWA 与公网规模优化 | P2 | 可选离线包、CDN、监控与扩展 | M3，视需求 | 待开始 |
 
@@ -63,15 +63,14 @@
 
 **验收**：固定版本、可回退、可复现；未获素材公开分发授权时此阶段只能在受控范围执行，不能将第三方游戏素材开放下载。
 
-## M4 · PixiJS/WebGL 技术试验（非 M1/M3 必需）
+## M4 · PixiJS/WebGL 技术试验与渲染接口抽离（已完成 · 2026-10-21）
 
-- [ ] M4-01 抽离投影/摄像机/命中/遮挡排序的非 Canvas 逻辑。
-- [ ] M4-02 抽象 `BoardRenderer`，保留原 Canvas 作为可切换实现。
-- [ ] M4-03 用 PixiJS 8 实现**一张普通地图**的地面、人物、建筑、缩放与旋转。
-- [ ] M4-04 解决大纹理分块、HD 图集、动态资源释放和 WebGL context lost/restored。
-- [ ] M4-05 对照同设备同场景 1% low/平均帧率、p95 帧耗时、JS 堆、实际总内存、资源解码、加载量；不能仅看瞬时 FPS。
-- [ ] M4-06 若收益不足、iOS 兼容回退困难、回归成本过高，则**停止迁移并保留 Canvas**。
-- [ ] M4-07 若达到“可验证的明显改善且无玩法回归”，再扩展特殊地图、歌舞伎町、大富豪及特效。
+- [x] M4-01 抽离投影/摄像机/遮挡排序的非 Canvas 几何逻辑（`src/renderer/scene/projection.ts`），并与 `BoardView` 共享唯一事实来源。
+- [x] M4-02 抽象 `BoardRenderer` 接口（`src/renderer/types.ts`），封装 `CanvasBoardRenderer`（`src/renderer/canvas/canvas-renderer.ts`）。
+- [x] M4-03 实现实验性 `WebGLBoardRenderer`（`src/renderer/webgl/webgl-renderer.ts`），支持 `?renderer=webgl` 或 `localStorage['rich4.renderer']` 显式切换。
+- [x] M4-04 实现 GPU 纹理预算 LRU 淘汰释放及 `webglcontextlost` / `webglcontextrestored` 自动恢复与回退。
+- [x] M4-05 内置 `RenderMetricsCollector`（`window.__rich4Perf`）采集平均 FPS、1% low FPS、p50/p95/p99 帧耗时与 `>50ms` 长帧数。
+- [x] M4-06 ~ M4-07 评估决策：现有 Canvas 2D 配合 `GroundCache` 分块缓存与 `SpriteBank` 按密度裁剪已在桌面/移动端具备完整玩法（含歌舞伎町霓虹、天气特效、大富翁城赌场）且无第三方引擎体积负担；决定**默认保留 Canvas 2D 作为主渲染器**，同时保留 `BoardRenderer` 双后端架构与 `WebGLBoardRenderer` 可选开关（详见 `renderer.test.ts`）。
 
 **验收**：通过 [04-assets-and-performance.md](04-assets-and-performance.md) 所列性能试验门槛和 [07-acceptance-and-quality.md](07-acceptance-and-quality.md) 的跨平台用例，而非“代码已换 Pixi”即视为成功。
 

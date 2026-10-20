@@ -24,6 +24,10 @@ import { kbBadges, kbFigures, kbHouseSprite, kbPadSprite, kbRules, kbShopSprite,
 import type { StreetView } from './kb-ambient';
 import { timeout, watch } from './watchdog';
 import { pickAt, visible as shapeVisible, type Piece, type Shape } from './pick-hit';
+import { buildingFrame, computeBasis, screenDir } from '../renderer/scene/projection';
+import { RenderMetricsCollector } from '../renderer/types';
+
+export { screenDir };
 
 const S = 1.2175, K = Math.SQRT1_2;
 /** Original view: 440×440, the camera point at its centre. */
@@ -69,11 +73,9 @@ interface Item { key: number; draw: () => void }
  */
 export type InputMode = 'locked' | 'free' | 'pick' | 'pick-scroll';
 
-export const screenDir = (dir: number, rot: number) => (dir + 8 - rot) & 7;
-const buildingFrame = (facing: number, rot: number) => (8 - facing - rot) & 7;
-
 export class BoardView {
   readonly canvas: HTMLCanvasElement;
+  readonly perf = new RenderMetricsCollector();
   private ctx: CanvasRenderingContext2D;
   private actors = new Map<number, Actor>();
   /** Camera in world pixels, view rotation 0..7, zoom = screen px per original px. */
@@ -146,12 +148,17 @@ export class BoardView {
     this.warm();
     let last = performance.now(), acc = 0;
     this.looping = true;
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __rich4Perf?: () => unknown }).__rich4Perf = () => this.perf.summary();
+    }
     const loop = (t: number) => {
       if (!this.alive) return;
       // Scheduled first: a frame that throws (a picture released under it …) must not stop the loop, or every
       // walk, camera move and effect the game waits on would never finish.
       requestAnimationFrame(loop);
-      acc += t - last; last = t;
+      const dt = t - last;
+      this.perf.recordFrame(dt);
+      acc += dt; last = t;
       if (acc > 1000) acc = this.tickMs;
       try {
         while (acc >= this.tickMs) { acc -= this.tickMs; this.tick(); }
@@ -192,9 +199,7 @@ export class BoardView {
   }
 
   private basis() {
-    const th = (-22.5 + 45 * this.rot) * Math.PI / 180, z = this.zoom;
-    const cos = Math.cos(th), sin = Math.sin(th);
-    return { a: z * S * cos, b: z * K * S * sin, c: -z * S * sin, d: z * K * S * cos };
+    return computeBasis(this.rot, this.zoom);
   }
 
   /** World pixel → CSS pixel on the canvas. */
