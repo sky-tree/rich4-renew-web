@@ -8,7 +8,10 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const src = join(root, 'public/assets');
-const out = resolve(process.argv[2] ?? join(root, 'dist/assets'));
+const cliArgs = process.argv.slice(2);
+const webMode = cliArgs.includes('--web');
+const positionalOut = cliArgs.find(a => !a.startsWith('--'));
+const out = resolve(positionalOut ?? join(root, 'dist/assets'));
 let count = 0, bytes = 0;
 
 function copy(rel) {
@@ -183,3 +186,15 @@ if (existsSync(join(src, 'ground/index.json'))) {
 }
 
 console.log(`bundled ${count} files, ${(bytes / 1e6).toFixed(0)} MB → ${out}`);
+
+if (webMode) {
+  const { auditAssets } = await import('./audit-assets.mjs');
+  const res = auditAssets(out, { writeManifest: join(out, 'web-packs.json') });
+  if (!res.skipped) {
+    if (res.missing.length > 0) {
+      console.error(`[bundle-assets --web] Failed: ${res.missing.length} broken manifest references in output bundle.`);
+      process.exit(1);
+    }
+    console.log(`[bundle-assets --web] Wrote ${join(out, 'web-packs.json')} (${Object.keys(res.manifest.packs).length} packs verified).`);
+  }
+}

@@ -1,4 +1,5 @@
 /** Loads the locally linked game data and art (see scripts/link-assets.mjs). */
+import { defaultAssetLoader } from '../assets/loader';
 import { parseBoard, type Board, type RawMap } from '../core/board';
 
 export const ASSETS = `${import.meta.env.BASE_URL}assets`;
@@ -26,11 +27,14 @@ const images = new Map<string, Promise<HTMLImageElement>>();
 export function image(url: string): Promise<HTMLImageElement> {
   let p = images.get(url);
   if (!p) {
-    p = new Promise((resolve, reject) => {
+    p = new Promise<HTMLImageElement>((resolve, reject) => {
       const img = new Image();
       img.decoding = 'async';
       img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error(`無法載入素材 ${url}`));
+      img.onerror = () => {
+        images.delete(url);
+        reject(new Error(`無法載入素材 ${url}`));
+      };
       img.src = url;
     });
     images.set(url, p);
@@ -38,10 +42,12 @@ export function image(url: string): Promise<HTMLImageElement> {
   return p;
 }
 
+export function __clearImageCacheForTest(): void {
+  images.clear();
+}
+
 async function json<T>(url: string): Promise<T> {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`無法載入 ${url}（請先執行 npm run assets）`);
-  return r.json() as Promise<T>;
+  return defaultAssetLoader.fetchJson<T>(url);
 }
 
 export async function mapList(): Promise<MapInfo[]> {
@@ -111,9 +117,12 @@ export async function loadMapData(id: number): Promise<RawMap & { tycoon?: unkno
   return json(entry?.data ? `${ASSETS}/maps/${entry.data}` : `${base}.json`);
 }
 
-/** HD portrait for a character (Data.mkf #2, aligned 4x), falling back to the original. */
+/** HD portrait for a character (Data.mkf #2, aligned 4x), supporting both PNG and WebP bundles before falling back to original. */
 export async function portrait(character: number): Promise<HTMLImageElement> {
   const n = String(character).padStart(3, '0');
   try { return await image(`${ASSETS}/hd/Data/0002-SMP/frame-${n}.png`); }
-  catch { return image(`${ASSETS}/orig/Data/0002-SMP/frame-${n}.png`); }
+  catch {
+    try { return await image(`${ASSETS}/hd/Data/0002-SMP/frame-${n}.webp`); }
+    catch { return image(`${ASSETS}/orig/Data/0002-SMP/frame-${n}.png`); }
+  }
 }

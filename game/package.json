@@ -9,6 +9,8 @@
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
     "build:web": "tsc --noEmit && vite build --base=/rich4/",
+    "audit:assets": "node scripts/audit-assets.mjs",
+    "bundle:web": "node scripts/bundle-assets.mjs --web",
     "test": "vitest run",
     "assets": "node scripts/link-assets.mjs"
   },

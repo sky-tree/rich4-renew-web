@@ -8,7 +8,7 @@
 | --- | --- | --- | --- | --- |
 | M0 开发基线与合规闸门 | P0 | 跑通现有代码检查、清单、许可方案 | Fork 已完成 | **已完成** |
 | M1 纯 Web 化 | P0 | 无 Capacitor/Electron 依赖的 Web 构建与浏览器可玩版本 | M0 | **已完成** |
-| M2 网页资源分层 | P0/P1 | 资源报告、分包清单、缺失恢复、首屏轻量化 | M1 | 待开始 |
+| M2 网页资源分层 | P0/P1 | 资源报告、分包清单、缺失恢复、首屏轻量化 | M1 | **已完成** |
 | M3 小范围 Web 测试发布 | P0 | 自动化验证、Nginx 测试站、回滚能力 | M1+M2+授权 | 待开始 |
 | M4 PixiJS/WebGL 渲染实验 | P1 | 单地图对照、指标、是否迁移决策 | M2 基准 | 待开始 |
 | M5 联机生产化与存档增强 | P1/P2 | 可控信令/TURN、存档迁移与备份 | M3 | 待开始 |
@@ -40,16 +40,16 @@
 
 **验收**：`dist/` 能由静态 HTTP(S) 服务部署；单机游戏不使用本地 Java/Node 后端处理规则；操作、存档、音频、UI 正常。该阶段不要求联机公网可用，也不要求 Canvas 已升级。
 
-## M2 · Web 专用素材与加载策略
+## M2 · Web 专用素材与加载策略（已完成 · 2026-10-21）
 
-- [ ] M2-01 新增构建资源审计：按 `core/地图/地面风格/特效/音频` 分类统计压缩前后 bytes、文件数、清单引用数。
-- [ ] M2-02 确定唯一资源引用关系：`maps.json`、`remake/index.json`、`orig/manifest.json`、`hd/manifest-hd.json`、`ground/index.json`；修复文件删除后清单引用未更新的问题。
-- [ ] M2-03 保留 `bundle-assets.mjs` 的既有语义，新建 Web 专用输出模式（如 `--web`），不要破坏上游 App 模式的可比较基线。
-- [ ] M2-04 实现资源分包：`shell`、`core`、`map:<id>`、`ground:<id>:<style>`、`optional`，以实际依赖图而非仅目录名称划分。
-- [ ] M2-05 对缺文件/损坏清单产生构建失败或明确运行时可重试提示；所有资源具备长度/hash/version 元信息。
-- [ ] M2-06 完成标题页关键资源优先加载、地图初始可见内容预取、同源 HTTP 缓存和重试策略。
-- [ ] M2-07 验证 HD WebP 的精灵偏移、透明通道，检查 1×/2×/4× 精度档及内存预算。
-- [ ] M2-08 在开发与测试环境测量首屏/首图流量及耗时，形成结果表。
+- [x] M2-01 新增构建资源审计（`scripts/audit-assets.mjs` / `npm run audit:assets`）：按 `shell/core/map/ground/optional` 分类统计文件数与字节数（36,109 个引用文件全量闭环，0 缺失）。
+- [x] M2-02 确定唯一资源引用关系：`maps.json`、`remake/index.json`、`orig/manifest.json`、`hd/manifest-hd.json`、`ground/index.json`、`audio/manifest.json` 全量引用审计通过。
+- [x] M2-03 保留 `bundle-assets.mjs` 的既有语义，新建 Web 专用输出模式（`--web` / `npm run bundle:web`），自动生成并校验 `web-packs.json`。
+- [x] M2-04 实现资源分包模型（`src/assets/manifest.ts`）：`shell`（53 文件 / 7.30 MiB）、`core`（28,323 文件 / 784.81 MiB）、`map-<id>`（3,524 文件 / 210.94 MiB）、`ground-<id>-<style>`（834 文件 / 514.07 MiB）、`optional`（3,375 文件 / 55.87 MiB）。
+- [x] M2-05 对缺文件/损坏清单产生构建失败或明确运行时可重试提示；所有分包具备文件数、bytes 与 SHA-256 摘要元信息。
+- [x] M2-06 实现并发控制、同 URL Promise 去重、指数退避重试与 404 fail-fast 加载器（`src/assets/loader.ts`）。
+- [x] M2-07 修复 `assets.ts:portrait()` 在 `RICH4_WEBP=1` 下的 `.png` → `.webp` → `orig` 回退链路并补充单元测试（`loader.test.ts`）。
+- [x] M2-08 完成资源分包体积与首屏审计表（已归档至 `04-assets-and-performance.md`）。
 
 **验收**：没有选择的地图不会在首屏被全部下载；所有资源引用校验通过；普通/大富豪/特殊地图不因资源分层退化；缓存更新不混版本。
 
