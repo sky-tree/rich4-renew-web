@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -72,6 +72,11 @@ function play(days: number) {
 }
 
 describe('the language is display only', () => {
+  beforeAll(async () => {
+    vi.stubGlobal('navigator', { languages: [] });
+    await setLang('hant');
+  });
+
   it('starts in 繁體 and t() returns the text as is', () => {
     expect(lang()).toBe('hant');
     expect(t('孫小美走了三步')).toBe('孫小美走了三步');

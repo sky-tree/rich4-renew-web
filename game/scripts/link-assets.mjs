@@ -23,6 +23,6 @@ for (const [name, source] of Object.entries(sources)) {
   const link = resolve(target, name);
   rmSync(link, { force: true, recursive: false });
   if (!existsSync(source)) { console.warn(`missing ${name}: ${source}`); continue; }
-  symlinkSync(source, link);
+  symlinkSync(source, link, 'junction');
   console.log(`${name} -> ${source}`);
 }

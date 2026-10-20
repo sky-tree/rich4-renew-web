@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseBoard, type Board, type RawMap } from './board';
@@ -13,8 +13,8 @@ import type { GameSettings } from './types';
 const dir = '../../../editor/site/assets/remake/';
 const raw = (key: string): RawMap => JSON.parse(readFileSync(fileURLToPath(new URL(`${dir}${key}.json`, import.meta.url)), 'utf8')) as RawMap;
 const CITIES = { tokyo: 100, osaka: 101, sapporo: 102, kyushu: 103, okinawa: 104 } as const;
-const have = Object.keys(CITIES).every(k => existsSync(fileURLToPath(new URL(`${dir}${k}.json`, import.meta.url))));
 const japanFile = fileURLToPath(new URL('../../../editor/site/assets/map-2.json', import.meta.url));
+const have = existsSync(japanFile) && Object.keys(CITIES).every(k => existsSync(fileURLToPath(new URL(`${dir}${k}.json`, import.meta.url))));
 const JAPAN = STOCK_TABLE[2];
 
 function settings(mapId: number, seed: number): GameSettings {
@@ -25,7 +25,10 @@ function settings(mapId: number, seed: number): GameSettings {
 }
 
 describe.skipIf(!have)('local companies of the remake cities', () => {
-  const boards = Object.fromEntries(Object.keys(CITIES).map(k => [k, parseBoard(raw(k))])) as Record<keyof typeof CITIES, Board>;
+  let boards: Record<keyof typeof CITIES, Board>;
+  beforeAll(() => {
+    boards = Object.fromEntries(Object.keys(CITIES).map(k => [k, parseBoard(raw(k))])) as Record<keyof typeof CITIES, Board>;
+  });
 
   it('each city has its own 12 stock names, none shared with another city', () => {
     const seen = new Map<string, string>();

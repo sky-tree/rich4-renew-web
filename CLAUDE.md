@@ -128,17 +128,20 @@ npm run assets
 
 ---
 
-## 6. 当前基线状态快照（M0 检查记录 · 2026-10-20）
+## 6. 当前基线状态快照（M0 收尾记录 · 2026-10-21）
 
-- **代码基线**：`HEAD` 为 `fae4875e52cdc64d3c67afe9ebf1a24284b5b423`（上游基线 `bb1093863f389620fb56bc630d8b32ef9a35e901`）。
+- **代码基线**：上游基线 `bb1093863f389620fb56bc630d8b32ef9a35e901`。
 - **编译与构建**：`npx tsc --noEmit` 零错误通过；`RICH4_NO_ASSETS=1 npm run build` 正常产出 `dist/`（主 JS 约 1,106.8 kB / gzip 401.2 kB，主 CSS 约 475.1 kB / gzip 152.1 kB）。
+- **本地素材与全量测试**：
+  - 素材包：`rich4-assets.tar`（SHA-256: `0a2296aa05c8c91edd578475fa0615e07adfb8725b47ab15bc059397b539a1f4`），解压至 `game/public/assets/` 共 36,109 个文件、约 1.64 GB（`hd` 634 MB、`ground` 516 MB、`maps` 282 MB、`orig` 169 MB、`audio` 43 MB）。
+  - 单元测试：无素材环境下 21 passed / 26 skipped（105 passed / 381 skipped）；挂载完整素材后 **47 个测试文件 / 486 项测试 100% 通过**。
 - **原生依赖待清理项（M1 目标）**：
   - `game/package.json`：含 `@capacitor/core`、`@capacitor/filesystem`、`@capacitor/share`、`@capacitor/screen-orientation`、`@capacitor/android`、`@capacitor/ios`、`@capacitor/cli` 及 `build:app` / `ios` / `package` 脚本。
   - `game/src/ui/saves.ts`：含 `@capacitor/core` 与 `@capacitor/filesystem` 原生文件读写及迁移分支。
   - `game/src/ui/share.ts`：含 `@capacitor/core`、`PhotoSaver` 插件、`@capacitor/filesystem` 与 `@capacitor/share` 分支。
   - `game/src/ui/orientation.ts`：直接引用 `@capacitor/screen-orientation`。
   - `game/src/ui/audio.ts`：第 249 行含针对 Capacitor iOS 本地资源 `r.status === 0` 的兼容判断。
-- **跨平台（Windows / macOS）与单元测试已知问题（待在 M0/M1 修复）**：
-  1. `src/core/local-companies.test.ts`：在无本地素材环境下，`describe.skipIf(!have)` 块内顶层同步调用了 `raw(k)` 读取 `editor/site/assets/remake/*.json`，导致 Vitest 收集阶段报 `ENOENT`（需改为惰性加载或在 `beforeAll` 中读取）。
-  2. `src/ui/lang.test.ts`：在 Node 21+（如 Node 24）且系统语言为简体中文（`zh-CN`，常见于 Windows 中文系统）的环境下，全局 `navigator.languages` 默认返回 `['zh-CN']`，使得 `lang()` 初始返回 `'hans'` 而非测试预期的 `'hant'`。
-  3. `scripts/link-assets.mjs`：当前使用 `symlinkSync(source, link)`，在 Windows 无管理员权限下创建目录软链会失败，需改为 `symlinkSync(source, link, 'junction')` 以同时兼容 Windows 与 macOS。
+- **跨平台（Windows / macOS）与单元测试已知问题（已修复）**：
+  1. `src/core/local-companies.test.ts`：已将 `boards` 解析移入 `beforeAll` 并补充 `existsSync(japanFile)` 检查，解决无本地素材环境下 Vitest 收集阶段报 `ENOENT` 的问题。
+  2. `src/ui/lang.test.ts`：已在 `beforeAll` 中通过 `vi.stubGlobal('navigator', { languages: [] })` 与 `setLang('hant')` 固定初始语言状态，解决 Node 21+ 在 `zh-CN` 系统语言下默认返回 `'hans'` 导致断言失败的问题。
+  3. `scripts/link-assets.mjs`：已将 `symlinkSync(source, link)` 改为 `symlinkSync(source, link, 'junction')`，同时兼容无管理员权限的 Windows 与 macOS。
