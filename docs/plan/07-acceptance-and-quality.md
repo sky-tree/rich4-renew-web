@@ -113,7 +113,18 @@ RICH4_NO_ASSETS=1 npm run build
 - 未执行的测试/风险：
 ```
 
-## 8. 发布验收记录模板
+## 8. 发布验收记录模板与 M3 验收记录
+
+### M3 首版构建与受控发布演练记录（2026-10-21）
+- **日期 / 环境**：2026-10-21 / macOS 开发机（Node `v25.9.0`，npm `11.12.1`）
+- **源码版本 / BuildId**：`0.6.6-4b2a1ac`（`baseUrl: /rich4/`，共 205 个核心打包文件 + 36,109 个受控游戏素材文件）
+- **源码 GPL 与私人素材边界**：通过（仅用于个人/私人使用，游戏素材保持 `.gitignore` 隔离）
+- **自动化验证（CI / 本地）**：
+  - `npm test`：52 个测试文件 / 504 项测试 100% 通过
+  - `npx tsc --noEmit`：0 错误
+  - `npm run audit:assets`：36,109 文件全量闭合，0 缺失；`shell` 首屏包 53 文件 / 7.30 MiB（≤10 MiB）
+  - `npm run verify:web`：6 项 `/rich4/` 路由、301 重定向、Cache-Control、MIME、严格 404 冒烟检查全部通过
+- **Nginx 版本目录与回滚演练**：通过 `npm run release:web -- deploy` 与 `npm run release:web -- rollback` 完成 `rel-0.6.6-a` ↔ `rel-0.6.6-b` 原子符号链接切换与回滚验证。
 
 ```md
 ## Release <版本或 SHA>

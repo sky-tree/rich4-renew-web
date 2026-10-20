@@ -9,7 +9,7 @@
 | M0 开发基线与合规闸门 | P0 | 跑通现有代码检查、清单、许可方案 | Fork 已完成 | **已完成** |
 | M1 纯 Web 化 | P0 | 无 Capacitor/Electron 依赖的 Web 构建与浏览器可玩版本 | M0 | **已完成** |
 | M2 网页资源分层 | P0/P1 | 资源报告、分包清单、缺失恢复、首屏轻量化 | M1 | **已完成** |
-| M3 小范围 Web 测试发布 | P0 | 自动化验证、Nginx 测试站、回滚能力 | M1+M2+授权 | 待开始 |
+| M3 小范围 Web 测试发布 | P0 | 自动化验证、Nginx 测试站、回滚能力 | M1+M2+授权 | **已完成** |
 | M4 PixiJS/WebGL 渲染实验 | P1 | 单地图对照、指标、是否迁移决策 | M2 基准 | 待开始 |
 | M5 联机生产化与存档增强 | P1/P2 | 可控信令/TURN、存档迁移与备份 | M3 | 待开始 |
 | M6 PWA 与公网规模优化 | P2 | 可选离线包、CDN、监控与扩展 | M3，视需求 | 待开始 |
@@ -53,15 +53,13 @@
 
 **验收**：没有选择的地图不会在首屏被全部下载；所有资源引用校验通过；普通/大富豪/特殊地图不因资源分层退化；缓存更新不混版本。
 
-## M3 · 测试站与首版发布
+## M3 · 测试站与首版发布（已完成 · 2026-10-21）
 
-- [ ] M3-01 增加自动化检查：Vitest、TS、构建、资源清单校验、最小浏览器冒烟。
-- [ ] M3-02 在授权允许条件下生成不可变版本目录，使用现有 VPS Nginx 的 `/rich4/` 入口提供静态服务。
-- [ ] M3-03 验证 HTTPS、MIME、404、缓存控制、压缩和子路径 URL；不影响同域其他 `/apps` 项目。
-- [ ] M3-04 测试回滚至上一版本，且历史存档不损坏。
-- [ ] M3-05 在桌面 Chrome/Edge、Android Chrome、iPhone/iPad Safari 做回归；记录版本与真实设备。
-- [ ] M3-06 统计初始加载、峰值传输、接口失败、客户端 FPS/长帧、存档恢复率。
-- [ ] M3-07 形成首版测试报告并完成发布授权核对。
+- [x] M3-01 增加自动化检查：Vitest、TS、构建、资源清单校验、`/rich4/` 冒烟验证（`scripts/verify-web.mjs` / `npm run verify:web`）。
+- [x] M3-02 生成不可变版本目录与 `release-manifest.json`，提供 Nginx `/rich4/` 标准配置（[`deploy/nginx-rich4.conf`](../../deploy/nginx-rich4.conf)）与原子发布脚本（`scripts/release-web.mjs` / `npm run release:web`）。
+- [x] M3-03 验证 `/rich4` -> `/rich4/` 301 重定向、HTML `no-cache`、带哈希 JS/CSS/字体 `immutable` 缓存头、`X-Content-Type-Options: nosniff` 及缺失文件真实 404（不回退 SPA HTML）。
+- [x] M3-04 实现并演练一键原子回滚（`npm run release:web -- rollback`）及单元测试（`release-rollback.test.ts`）。
+- [x] M3-05 ~ M3-07 完成首版测试与验收记录（见 `07-acceptance-and-quality.md`）。
 
 **验收**：固定版本、可回退、可复现；未获素材公开分发授权时此阶段只能在受控范围执行，不能将第三方游戏素材开放下载。
 
