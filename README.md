@@ -20,6 +20,7 @@
 - `game/ios` iOS 工程、`game/android` 安卓工程（Capacitor 7）
 - `game/scripts` 素材連結、打包、安裝到 iPhone
 - `docs/rules` 規則文件
+- `docs/plan`：[`Rich4 Web Edition 开发计划与技术路线`](docs/plan/README.md)（本 Fork 的规划；尚未完成纯 Web 改造）
 
 ## 執行
 ```bash
