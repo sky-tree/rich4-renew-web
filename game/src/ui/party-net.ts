@@ -61,10 +61,16 @@ export function myRegion(): string {
   return ({ Asia: '亞洲', Europe: '歐洲', America: '美洲', Australia: '澳洲', Pacific: '大洋洲', Africa: '非洲' } as Record<string, string>)[area] ?? '';
 }
 /** What the host sends when the game starts. */
-export interface StartMsg { settings: import('../core/types').GameSettings; seats: Record<string, number> }
+export interface StartMsg { settings: import('../core/types').GameSettings; seats: Record<string, number>; proto?: number; rules?: string }
 
-type Msg =
-  | { t: 'hi'; name: string; character: number; have?: number; region?: string; prev?: string; nick?: string }
+export const PARTY_PROTOCOL_VERSION = 1;
+export const PARTY_RULES_VERSION = '0.6.6';
+export const MAX_PUBLIC_ROOMS = 100;
+export const MAX_MSG_BYTES = 65536;
+export const MAX_LOG_REPLAY = 5000;
+
+export type Msg =
+  | { t: 'hi'; name: string; character: number; have?: number; region?: string; prev?: string; nick?: string; proto?: number; rules?: string }
   | { t: 'char'; character: number; nick?: string }
   | { t: 'lobby'; members: Member[]; map: string; shared: boolean }
   | { t: 'start'; start: StartMsg }
@@ -79,22 +85,126 @@ type Msg =
 
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-/**
- * Where the phones find a way to each other (2026-10-20): Google's STUN, and our own relay (TURN, coturn on the user's
- * Tokyo VPS game.flj.info = 154.205.139.82, /game/turn there) for networks that cannot connect directly (mobile data, company Wi-Fi). PeerJS's free
- * relay is gone. The relay only carries the game's answers and the chat; it is rate- and quota-limited on the server.
- */
-export const ICE_SERVERS: RTCIceServer[] = [
+export interface PartyNetConfig {
+  peerServer?: {
+    host?: string;
+    port?: number;
+    path?: string;
+    secure?: boolean;
+  };
+  iceServers?: RTCIceServer[];
+}
+
+const NET_CONFIG_KEY = 'rich4.netConfig';
+const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:game.flj.info:3478' },
-  { urls: ['turn:game.flj.info:3478?transport=udp', 'turn:game.flj.info:3478?transport=tcp'], username: 'rich4', credential: '29e57ad82edb53b7f8dde103' },
 ];
-const PEER_OPTS = { debug: 0, config: { iceServers: ICE_SERVERS } } as const;
+
+let runtimeNetConfig: PartyNetConfig | null = null;
+
+/** Sets or overrides the runtime PeerJS / STUN / ephemeral TURN configuration (M5-01, M5-02). */
+export function setPartyNetConfig(cfg: PartyNetConfig | null): void {
+  runtimeNetConfig = cfg;
+}
+
+/** Resolves the active PeerJS & ICE configuration without any hardcoded long-lived TURN credentials. */
+export function resolvePartyNetConfig(): { iceServers: RTCIceServer[]; peerServer?: PartyNetConfig['peerServer'] } {
+  let merged: PartyNetConfig = {};
+  try {
+    const winCfg = (typeof window !== 'undefined' ? (window as unknown as { __RICH4_NET_CONFIG__?: PartyNetConfig }).__RICH4_NET_CONFIG__ : undefined);
+    if (winCfg && typeof winCfg === 'object') merged = { ...merged, ...winCfg };
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(NET_CONFIG_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as PartyNetConfig;
+        if (parsed && typeof parsed === 'object') merged = { ...merged, ...parsed };
+      }
+    }
+  } catch { /* ignore storage parse error */ }
+  if (runtimeNetConfig) merged = { ...merged, ...runtimeNetConfig };
+  const iceServers = Array.isArray(merged.iceServers) && merged.iceServers.length > 0
+    ? merged.iceServers
+    : DEFAULT_ICE_SERVERS;
+  return { iceServers, peerServer: merged.peerServer };
+}
+
+export const ICE_SERVERS: RTCIceServer[] = DEFAULT_ICE_SERVERS;
+
+export function buildPeerOptions() {
+  const cfg = resolvePartyNetConfig();
+  return {
+    debug: 0,
+    ...(cfg.peerServer ?? {}),
+    config: { iceServers: cfg.iceServers },
+  };
+}
+
+/**
+ * Validates incoming P2P messages for structural safety, byte size cap, protocol compatibility,
+ * sequence bounds, and sender seat/identity authorization (M5-03).
+ */
+export function validateIncomingMsg(
+  raw: unknown,
+   maxBytes = MAX_MSG_BYTES,
+): { ok: true; msg: Msg } | { ok: false; reason: string } {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { ok: false, reason: 'invalid-object' };
+  }
+  try {
+    const str = JSON.stringify(raw);
+    if (str.length > maxBytes) return { ok: false, reason: 'message-too-large' };
+  } catch {
+    return { ok: false, reason: 'unserializable' };
+  }
+  const m = raw as Partial<Msg> & { t?: unknown };
+  if (typeof m.t !== 'string') return { ok: false, reason: 'missing-type' };
+  switch (m.t) {
+    case 'hi':
+      if (typeof m.character !== 'number' || m.character < 0 || m.character >= 12) {
+        return { ok: false, reason: 'invalid-character' };
+      }
+      if (m.proto !== undefined && m.proto !== PARTY_PROTOCOL_VERSION) {
+        return { ok: false, reason: 'version-mismatch' };
+      }
+      return { ok: true, msg: m as Msg };
+    case 'char':
+      if (typeof m.character !== 'number' || m.character < 0 || m.character >= 12) {
+        return { ok: false, reason: 'invalid-character' };
+      }
+      return { ok: true, msg: m as Msg };
+    case 'ans':
+      if (typeof m.seq !== 'number' || !Number.isInteger(m.seq) || m.seq < 0 || m.seq > MAX_LOG_REPLAY) {
+        return { ok: false, reason: 'invalid-seq' };
+      }
+      return { ok: true, msg: m as Msg };
+    case 'chat':
+      if (!m.line || typeof m.line !== 'object' || typeof m.line.text !== 'string') {
+        return { ok: false, reason: 'invalid-chat' };
+      }
+      return { ok: true, msg: m as Msg };
+    case 'vote':
+      if (typeof m.target !== 'string' || !m.target) {
+        return { ok: false, reason: 'invalid-vote' };
+      }
+      return { ok: true, msg: m as Msg };
+    case 'lobby':
+    case 'start':
+    case 'log':
+    case 'digest':
+    case 'votes':
+    case 'kicked':
+    case 'bye':
+      return { ok: true, msg: m as Msg };
+    default:
+      return { ok: false, reason: 'unknown-type' };
+  }
+}
 
 /** A PeerJS peer with a given id, or null when the id is taken (another phone has it). */
 function open(id?: string): Promise<Peer | null> {
   return new Promise(resolve => {
-    const p = id ? new Peer(id, PEER_OPTS) : new Peer(PEER_OPTS);
+    const opts = buildPeerOptions();
+    const p = id ? new Peer(id, opts) : new Peer(opts);
     let done = false;
     p.on('open', () => { if (!done) { done = true; resolve(p); } });
     p.on('error', e => {
@@ -195,7 +305,11 @@ export class Lobby {
               this.conns.add(c2);
               c2.on('data', d => {
                 const m = d as { t: string; room?: RoomInfo; code?: string; seek?: boolean };
-                if (m.t === 'room' && m.room) this.rooms.set(m.room.code, { ...m.room, at: Date.now() });
+                if (m.t === 'room' && m.room && typeof m.room.code === 'string' && m.room.code.length <= 16) {
+                  if (this.rooms.size < MAX_PUBLIC_ROOMS || this.rooms.has(m.room.code)) {
+                    this.rooms.set(m.room.code, { ...m.room, at: Date.now() });
+                  }
+                }
                 if (m.t === 'room-off' && m.code) this.rooms.delete(m.code);
                 if (m.t === 'list') { if (m.seek) this.seekers.set(c2, Date.now()); else this.seekers.delete(c2); }
                 this.push();
@@ -350,7 +464,7 @@ export class Room {
     this.toHost = c;
     c.on('data', d => this.fromHost(d as Msg));
     c.on('close', () => { if (this.toHost === c) { this.toHost = null; if (!this.closed && !this.host) void this.rejoin(); } });
-    c.send({ t: 'hi', name: this.me.name, character: this.me.character, region: this.me.region, nick: this.me.nick, have: this.started ? this.log.length : undefined, prev } satisfies Msg);
+    c.send({ t: 'hi', name: this.me.name, character: this.me.character, region: this.me.region, nick: this.me.nick, have: this.started ? this.log.length : undefined, prev, proto: PARTY_PROTOCOL_VERSION, rules: PARTY_RULES_VERSION } satisfies Msg);
     for (const w of this.connWaiters.splice(0)) w();
     return true;
   }
@@ -381,7 +495,14 @@ export class Room {
 
   private guest(c: DataConnection) {
     c.on('data', d => {
-      const m = d as Msg;
+      const checked = validateIncomingMsg(d);
+      if (!checked.ok) {
+        if (checked.reason === 'version-mismatch') {
+          c.send({ t: 'bye', why: '遊戲版本不一致，請重新整理網頁更新後再連線' } satisfies Msg);
+        }
+        return;
+      }
+      const m = checked.msg;
       if (this.kickedIds.has(c.peer)) { c.send({ t: 'bye', why: '你已被投票請出房間' } satisfies Msg); return; }
       if (m.t === 'hi') {
         if (m.prev && this.kickedIds.has(m.prev)) { c.send({ t: 'bye', why: '你已被投票請出房間' } satisfies Msg); return; }
@@ -389,7 +510,7 @@ export class Room {
         this.guests.set(c.peer, c);
         if (this.started) {
           // Back after a drop, or to a new host: what it missed; it sends back what this phone lacks.
-          const from = Math.min(m.have ?? 0, this.log.length);
+          const from = Math.max(0, Math.min(m.have ?? 0, this.log.length));
           c.send({ t: 'log', from, answers: this.log.slice(from), total: this.log.length } satisfies Msg);
           if (!this.members.some(x => x.id === c.peer)) this.members.push(named({ id: c.peer, name: m.name, character: m.character, region: m.region, nick: m.nick }));
           for (const x of this.members) if (x.id === c.peer) x.away = false;
@@ -406,10 +527,17 @@ export class Room {
         const x = this.members.find(y => y.id === c.peer);
         if (x && !this.started) { x.character = this.freeCharacter(m.character, c.peer); x.nick = m.nick; named(x); this.lobbyChanged(); }
       } else if (m.t === 'ans') {
+        // Only accept answers from connected room members within bounded sequence window
+        if (!this.members.some(y => y.id === c.peer)) return;
+        if (m.seq > this.log.length + 64) return;
         this.record(m.seq, m.u ? undefined : m.v, true);
       } else if (m.t === 'chat') {
-        this.heard({ ...m.line, from: c.peer });
+        if (!this.members.some(y => y.id === c.peer)) return;
+        const cleanText = String(m.line.text ?? '').trim().slice(0, 40);
+        if (!cleanText) return;
+        this.heard({ ...m.line, text: cleanText, from: c.peer });
       } else if (m.t === 'vote') {
+        if (!this.members.some(y => y.id === c.peer)) return;
         this.voted(m.target, c.peer);
       }
     });

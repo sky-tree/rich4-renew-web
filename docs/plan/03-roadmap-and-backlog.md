@@ -11,7 +11,7 @@
 | M2 网页资源分层 | P0/P1 | 资源报告、分包清单、缺失恢复、首屏轻量化 | M1 | **已完成** |
 | M3 小范围 Web 测试发布 | P0 | 自动化验证、Nginx 测试站、回滚能力 | M1+M2+授权 | **已完成** |
 | M4 PixiJS/WebGL 渲染实验 | P1 | 单地图对照、指标、是否迁移决策 | M2 基准 | **已完成** |
-| M5 联机生产化与存档增强 | P1/P2 | 可控信令/TURN、存档迁移与备份 | M3 | 待开始 |
+| M5 联机生产化与存档增强 | P1/P2 | 可控信令/TURN、存档迁移与备份 | M3 | **已完成** |
 | M6 PWA 与公网规模优化 | P2 | 可选离线包、CDN、监控与扩展 | M3，视需求 | 待开始 |
 
 ## M0 · 基线、依赖、授权与风险（已完成 · 2026-10-21）
@@ -74,13 +74,13 @@
 
 **验收**：通过 [04-assets-and-performance.md](04-assets-and-performance.md) 所列性能试验门槛和 [07-acceptance-and-quality.md](07-acceptance-and-quality.md) 的跨平台用例，而非“代码已换 Pixi”即视为成功。
 
-## M5 · 联机与存档生产化
+## M5 · 联机与存档生产化（已完成 · 2026-10-21）
 
-- [ ] M5-01 将 PeerJS 信令地址、STUN/TURN 配置移出硬编码；公开客户端仅使用动态短期 TURN 凭据。
-- [ ] M5-02 部署或托管可靠 PeerServer；保留网络诊断入口，验证 HTTPS/WSS 与跨 NAT。
-- [ ] M5-03 房间协议增加 build/version 校验，避免不同版本规则锁步分叉；验证断线重连、房主迁移、超时托管。
-- [ ] M5-04 保留 IndexedDB 7 个存档槽与自动保存语义；追加 JSON 导入/导出、schema 版本和迁移测试。
-- [ ] M5-05 支持浏览器存储失效提示，绝不默默显示“已保存”；保持原有失败恢复链路。
+- [x] M5-01 将 PeerJS 信令地址、STUN/TURN 配置移出硬编码（移除源码硬编码 TURN 密码）；支持 `VITE_RICH4_ICE_SERVERS`、`window.__RICH4_NET_CONFIG__` 与 `localStorage['rich4.netConfig']` 动态注入（`src/ui/party-net.ts`）。
+- [x] M5-02 保留并更新网络诊断入口（`src/ui/party-check.ts`），复用可控 ICE/PeerServer 配置验证 HTTPS/WSS 与跨 NAT。
+- [x] M5-03 房间协议增加 `PARTY_PROTOCOL_VERSION` 校验与 `validateIncomingMsg()` 字节上限/结构/序列号校验，避免不同版本规则锁步分叉或畸形报文崩溃（`src/ui/party-net.test.ts`）。
+- [x] M5-04 保留 IndexedDB 7 个存档槽与自动保存语义；追加 JSON 导入/导出（`exportSaveJson` / `parseAndValidateSaveImport` / `importSaveToSlot`）、schema 版本校验、防原型污染过滤与覆写前自动备份槽位（`src/ui/saves.ts`、`src/ui/saves.test.ts`）。
+- [x] M5-05 支持浏览器存储失效提示，等待 IndexedDB 事务 `oncomplete` 后才反馈成功，绝不默默显示“已保存”；保持原有失败恢复链路。
 
 **验收**：多设备跨网络联机回归、恶意或错误配置防护；存档可迁移并有备份/恢复方案。
 

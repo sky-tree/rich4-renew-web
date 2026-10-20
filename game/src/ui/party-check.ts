@@ -4,14 +4,11 @@
  * (a STUN address or the TURN relay). Each failure says plainly that this phone cannot play with others now.
  */
 import Peer from 'peerjs';
-import { ICE_SERVERS } from './party-net';
+import { buildPeerOptions, resolvePartyNetConfig } from './party-net';
 
 export type NetCheck =
   | { ok: true; note?: string }
   | { ok: false; title: string; text: string; retry: boolean };
-
-/** The same servers as the game's connections (party-net ICE_SERVERS). */
-const ICE: RTCIceServer[] = ICE_SERVERS;
 
 const within = <T,>(p: Promise<T>, ms: number, late: T) => Promise.race([p, new Promise<T>(r => setTimeout(() => r(late), ms))]);
 
@@ -19,7 +16,7 @@ const within = <T,>(p: Promise<T>, ms: number, late: T) => Promise.race([p, new 
 function signalling(): Promise<boolean> {
   return within(new Promise<boolean>(resolve => {
     let p: Peer;
-    try { p = new Peer({ debug: 0, config: { iceServers: ICE_SERVERS } }); } catch { resolve(false); return; }
+    try { p = new Peer(buildPeerOptions()); } catch { resolve(false); return; }
     p.on('open', () => { resolve(true); p.destroy(); });
     p.on('error', () => { resolve(false); p.destroy(); });
     setTimeout(() => p.destroy(), 9000);
@@ -30,7 +27,7 @@ function signalling(): Promise<boolean> {
 async function candidates(): Promise<Set<string>> {
   const kinds = new Set<string>();
   let pc: RTCPeerConnection;
-  try { pc = new RTCPeerConnection({ iceServers: ICE }); } catch { return kinds; }
+  try { pc = new RTCPeerConnection({ iceServers: resolvePartyNetConfig().iceServers }); } catch { return kinds; }
   try {
     pc.createDataChannel('check');
     const done = new Promise<void>(resolve => {

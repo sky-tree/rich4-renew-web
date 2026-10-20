@@ -1,6 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SaveData } from '../core/save';
-import { __resetSavesForTest, AUTO_KEEP, AUTO_SLOT, autoSaves, listSlots, readSlot, SLOTS, writeAuto, writeSlot } from './saves';
+import {
+  __resetSavesForTest,
+  AUTO_KEEP,
+  AUTO_SLOT,
+  autoSaves,
+  exportSaveJson,
+  importSaveToSlot,
+  listSlots,
+  parseAndValidateSaveImport,
+  readBackupSlot,
+  readSlot,
+  SLOTS,
+  writeAuto,
+  writeSlot,
+} from './saves';
 
 function dummySave(savedAt: number, date = 0x19990101): SaveData {
   return {
@@ -134,5 +148,26 @@ describe('Web IndexedDB saves', () => {
   it('rejects when IndexedDB fails on both initial and retry attempts', async () => {
     installMockIndexedDB({ failAllOpens: true });
     await expect(writeSlot(3, dummySave(3000))).rejects.toThrow('mock open failed');
+  });
+
+  it('exports JSON with schemaVersion and safely imports into a manual slot while backing up the old save (M5-04)', async () => {
+    installMockIndexedDB();
+    const oldSave = dummySave(1111, 0x19990101);
+    await writeSlot(2, oldSave);
+
+    const newSave = dummySave(2222, 0x19990202);
+    const json = exportSaveJson(newSave, 2);
+    const { restored, backup } = await importSaveToSlot(2, json);
+    expect(restored.savedAt).toBe(2222);
+    expect(backup?.savedAt).toBe(1111);
+    expect((await readSlot(2))?.savedAt).toBe(2222);
+    expect((await readBackupSlot(2))?.savedAt).toBe(1111);
+  });
+
+  it('rejects prototype pollution, oversized files, future schema versions and invalid characters on import', () => {
+    expect(() => parseAndValidateSaveImport('{"__proto__":{"polluted":1}}')).toThrow('不安全的屬性名稱');
+    expect(() => parseAndValidateSaveImport('{"schemaVersion":99,"save":{}}')).toThrow('不支援較新版本的存檔格式');
+    expect(() => parseAndValidateSaveImport('{"version":1,"settings":{"mapId":0},"players":[{"character":99}],"game":{"date":1}}')).toThrow('無效的角色編號');
+    expect(() => parseAndValidateSaveImport('x'.repeat(200), 100)).toThrow('存檔檔案過大');
   });
 });

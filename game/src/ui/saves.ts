@@ -9,6 +9,9 @@ import type { SpriteBank } from './sprites';
 import { audio } from './audio';
 
 export const SLOTS = 7;
+export const SAVE_SCHEMA_VERSION = 1;
+export const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
+const BACKUP_BASE = 2000;
 /** Slot 0 is the automatic save, as SAVE0.DAT in the original. */
 export const AUTO_SLOT = 0;
 /** 大富豪模式 saves itself into its own slot, so a world never overwrites a normal game's automatic save. */
@@ -121,6 +124,130 @@ export async function listSlots(): Promise<(SaveData | undefined)[]> {
   catch { return new Array(SLOTS).fill(undefined); }
 }
 
+export interface ExportedSaveEnvelope {
+  schemaVersion: number;
+  exportedAt: number;
+  slot?: number;
+  save: SaveData;
+}
+
+/** Serializes a SaveData into a portable JSON string with schemaVersion metadata (M5-04). */
+export function exportSaveJson(save: SaveData, slot?: number): string {
+  const envelope: ExportedSaveEnvelope = {
+    schemaVersion: SAVE_SCHEMA_VERSION,
+    exportedAt: Date.now(),
+    ...(slot !== undefined ? { slot } : {}),
+    save,
+  };
+  return JSON.stringify(envelope, null, 2);
+}
+
+/** Triggers a browser download of the slot's save as a `.json` file. */
+export function downloadSaveJson(save: SaveData, slot: number): void {
+  const json = exportSaveJson(save, slot);
+  const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date(save.savedAt || Date.now()).toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `rich4-slot-${slot}-${stamp}.json`;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+function hasPrototypePollutionKey(obj: unknown, depth = 0): boolean {
+  if (depth > 32) return true;
+  if (!obj || typeof obj !== 'object') return false;
+  if (Array.isArray(obj)) {
+    return obj.some(item => hasPrototypePollutionKey(item, depth + 1));
+  }
+  for (const key of Object.keys(obj)) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') return true;
+    if (hasPrototypePollutionKey((obj as Record<string, unknown>)[key], depth + 1)) return true;
+  }
+  return false;
+}
+
+/**
+ * Safely parses and validates an imported JSON save string (M5-04).
+ * Checks byte limit, rejects prototype pollution keys, and verifies schema version & required fields.
+ */
+export function parseAndValidateSaveImport(rawText: string, maxBytes = MAX_IMPORT_BYTES): SaveData {
+  if (typeof rawText !== 'string' || !rawText.trim()) {
+    throw new Error('存檔內容為空');
+  }
+  if (rawText.length > maxBytes) {
+    throw new Error('存檔檔案過大（超過 5 MB 上限）');
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch {
+    throw new Error('存檔 JSON 格式損壞，無法解析');
+  }
+  if (hasPrototypePollutionKey(parsed)) {
+    throw new Error('存檔包含不安全的屬性名稱，已拒絕匯入');
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('存檔結構無效');
+  }
+  const maybeEnv = parsed as Partial<ExportedSaveEnvelope>;
+  if (maybeEnv.schemaVersion !== undefined && maybeEnv.schemaVersion > SAVE_SCHEMA_VERSION) {
+    throw new Error(`不支援較新版本的存檔格式 (schemaVersion=${maybeEnv.schemaVersion})`);
+  }
+  const candidate = (maybeEnv.save && typeof maybeEnv.save === 'object' ? maybeEnv.save : parsed) as Partial<AnySave>;
+  if (typeof candidate.version === 'number' && candidate.version > SAVE_SCHEMA_VERSION) {
+    throw new Error(`不支援較新版本的遊戲存檔 (version=${candidate.version})`);
+  }
+  if (!candidate.settings || typeof candidate.settings.mapId !== 'number') {
+    throw new Error('存檔缺少有效的地圖設定 (settings.mapId)');
+  }
+  if (!Array.isArray(candidate.players) || candidate.players.length === 0 || candidate.players.length > 12) {
+    throw new Error('存檔缺少有效的玩家清單 (players)');
+  }
+  for (const p of candidate.players) {
+    if (!p || typeof p.character !== 'number' || p.character < 0 || p.character >= 12) {
+      throw new Error('存檔包含無效的角色編號');
+    }
+  }
+  const isTycoon = candidate.kind === 'tycoon';
+  if (isTycoon) {
+    if (!candidate.world || typeof candidate.world.date !== 'number') {
+      throw new Error('大富豪存檔缺少世界日期資料');
+    }
+  } else if (!candidate.game || typeof candidate.game.date !== 'number') {
+    throw new Error('存檔缺少遊戲回合日期資料');
+  }
+  return {
+    ...candidate,
+    savedAt: typeof candidate.savedAt === 'number' && candidate.savedAt > 0 ? candidate.savedAt : Date.now(),
+  } as SaveData;
+}
+
+/** Reads the pre-import backup of a manual slot (`1..5`), if any. */
+export function readBackupSlot(slot: number): Promise<SaveData | undefined> {
+  return readSlot(BACKUP_BASE + slot);
+}
+
+/**
+ * Validates and imports a JSON save string into `slot`, keeping the previous occupant in a backup slot (`2000 + slot`)
+ * and resolving only after the IndexedDB transaction completes (M5-04, M5-05).
+ */
+export async function importSaveToSlot(slot: number, rawText: string): Promise<{ restored: SaveData; backup?: SaveData }> {
+  if (slot < 1 || slot >= SLOTS || isAuto(slot)) {
+    throw new Error('只能匯入至手動存檔槽位 (1..5)');
+  }
+  const restored = parseAndValidateSaveImport(rawText);
+  const backup = await readSlot(slot).catch(() => undefined);
+  if (backup) {
+    await writeSlot(BACKUP_BASE + slot, backup);
+  }
+  await writeSlot(slot, restored);
+  return { restored, backup };
+}
+
 /**
  * The save/load screen (09 §7.11): one row per slot with the game date, the map thumbnail and every player's
  * portrait. `mode` save lists slots 1..5 (the automatic slot is not written by hand); load lists 0..5 and
@@ -194,10 +321,45 @@ export async function pickSlot(parent: HTMLElement, mode: 'save' | 'load', mapNa
     };
     const row = document.createElement('div');
     row.className = 'choices';
+    const exportBtn = document.createElement('button');
+    exportBtn.className = 'candy ghost';
+    exportBtn.textContent = '匯出 JSON';
+    exportBtn.onclick = () => {
+      const idx = saves.findIndex((s, i) => i > 0 && !isAuto(i) && !!s);
+      const slot = idx >= 0 ? idx : saves.findIndex(Boolean);
+      const target = slot >= 0 ? saves[slot] : autos.get(AUTO_SLOT)?.[0]?.save;
+      if (!target) { audio.ui('error'); return; }
+      audio.ui('yes');
+      downloadSaveJson(target, slot >= 0 ? slot : AUTO_SLOT);
+    };
+    const importBtn = document.createElement('button');
+    importBtn.className = 'candy ghost';
+    importBtn.textContent = '匯入 JSON';
+    importBtn.onclick = () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json,application/json';
+      input.onchange = async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          const emptySlot = [1, 2, 3, 4, 5].find(i => !saves[i]) ?? 1;
+          const { restored } = await importSaveToSlot(emptySlot, text);
+          saves[emptySlot] = restored;
+          audio.ui('yes');
+          showSlots();
+        } catch (err) {
+          audio.ui('error');
+          alert((err as Error)?.message ?? '匯入失敗');
+        }
+      };
+      input.click();
+    };
     const cancel = document.createElement('button');
     cancel.className = 'candy ghost';
     cancel.onclick = () => (inAuto ? (audio.ui('no'), showSlots()) : done(-1));
-    row.append(cancel);
+    row.append(exportBtn, importBtn, cancel);
     showSlots();
     box.append(list, row);
     overlay.append(box);
