@@ -50,10 +50,13 @@ import { attachLedger, gameResults, ledgerOf, worldResults } from '../core/stats
 import { pickNextMap, showResults } from './results';
 import { nextSettings, recordResult, type CarriedSettings, type RunRecord } from './next-game';
 import { phrases, shrinkText } from './text';
+import { defaultTelemetry, initAppShellPwa } from '../assets/offline-pwa';
 
 const app = document.getElementById('app')!;
 // The orientation chosen in the settings is applied at start, before the title screen is laid out.
 void applyOrientation();
+void initAppShellPwa();
+(window as unknown as { __rich4Diag?: unknown }).__rich4Diag = defaultTelemetry;
 const svg = (d: string) => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
 const ICON_LEFT = svg('M3 12a9 9 0 1 0 3-6.7M3 4v5h5'), ICON_RIGHT = svg('M21 12a9 9 0 1 1-3-6.7M21 4v5h-5');
 

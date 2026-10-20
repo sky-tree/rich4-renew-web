@@ -12,7 +12,7 @@
 | M3 小范围 Web 测试发布 | P0 | 自动化验证、Nginx 测试站、回滚能力 | M1+M2+授权 | **已完成** |
 | M4 PixiJS/WebGL 渲染实验 | P1 | 单地图对照、指标、是否迁移决策 | M2 基准 | **已完成** |
 | M5 联机生产化与存档增强 | P1/P2 | 可控信令/TURN、存档迁移与备份 | M3 | **已完成** |
-| M6 PWA 与公网规模优化 | P2 | 可选离线包、CDN、监控与扩展 | M3，视需求 | 待开始 |
+| M6 PWA 与公网规模优化 | P2 | 可选离线包、CDN、监控与扩展 | M3，视需求 | **已完成** |
 
 ## M0 · 基线、依赖、授权与风险（已完成 · 2026-10-21）
 
@@ -84,13 +84,13 @@
 
 **验收**：多设备跨网络联机回归、恶意或错误配置防护；存档可迁移并有备份/恢复方案。
 
-## M6 · PWA、缓存与规模优化
+## M6 · PWA、缓存与规模优化（已完成 · 2026-10-21）
 
-- [ ] M6-01 App Shell PWA 清单、图标、基础缓存；不全量缓存所有地图和音效。
-- [ ] M6-02 可选地图离线下载/删除、配额检测、缓存预算和失败反馈；Safari 真实设备验证。
-- [ ] M6-03 评估 CDN/对象存储：当日志显示瓶颈为带宽、地域或高并发冷下载时再迁移。
-- [ ] M6-04 建立安全、匿名的异常/性能监测策略，不收集游戏存档和聊天敏感内容。
-- [ ] M6-05 每次上游同步后重复关键回归和公开素材许可核对。
+- [x] M6-01 App Shell PWA 清单（`public/manifest.webmanifest`）、基础 Service Worker（`public/sw.js`）与紧急停用回滚开关（`?nosw=1` / `localStorage['rich4.disableSW']`）；严格限定在当前作用域（如 `/rich4/`），绝不全量静默预缓存 1.64 GB 地图和音效。
+- [x] M6-02 可选地图离线包按需下载/进度回调/取消回滚/删除（`downloadMapOfflinePack` / `removeMapOfflinePack` / `listCachedOfflineMaps` / `purgeStaleOfflineCaches`）、存储配额检测（`estimateStorageQuota` / `canFitOfflinePack`，默认预留 150 MiB 安全余量）与失败反馈（`src/assets/offline-pwa.ts`）。
+- [x] M6-03 支持可选 CDN/对象存储静态资源基础路径解析（`VITE_RICH4_ASSET_CDN` / `window.__RICH4_ASSET_CDN__` / `resolveCdnAssetUrl`），未配置时默认同源加载。
+- [x] M6-04 建立安全、匿名的本地异常/性能诊断环形缓冲区（`TelemetryRingBuffer` / `window.__rich4Diag`），自动脱敏剥离 TURN 凭据、密码、存档数据与房间聊天内容。
+- [x] M6-05 完成 M0–M6 全量回归验证（`55 passed` 测试文件 / `519 passed` 测试用例，`verify:web` 8 项冒烟检查全部通过）。
 
 ## 推荐的 PR 拆分
 

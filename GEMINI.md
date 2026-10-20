@@ -128,20 +128,17 @@ npm run assets
 
 ---
 
-## 6. 当前基线状态快照（M0 收尾记录 · 2026-10-21）
+## 6. 当前基线状态快照（M0–M6 全阶段收尾记录 · 2026-10-21）
 
-- **代码基线**：上游基线 `bb1093863f389620fb56bc630d8b32ef9a35e901`。
-- **编译与构建**：`npx tsc --noEmit` 零错误通过；`RICH4_NO_ASSETS=1 npm run build` 正常产出 `dist/`（主 JS 约 1,106.8 kB / gzip 401.2 kB，主 CSS 约 475.1 kB / gzip 152.1 kB）。
+- **代码基线**：上游基线 `bb1093863f389620fb56bc630d8b32ef9a35e901`，已完成 M0–M6 全部里程碑改造与本地分阶段 Git 提交。
+- **编译与构建**：`npx tsc --noEmit` 零错误通过；`RICH4_NO_ASSETS=1 npm run build:web` 正常产出 `/rich4/` 子路径构建包及 PWA App Shell（`manifest.webmanifest`、`sw.js`）；`npm run verify:web` 8 项冒烟检查全部通过。
 - **本地素材与全量测试**：
-  - 素材包：`rich4-assets.tar`（SHA-256: `0a2296aa05c8c91edd578475fa0615e07adfb8725b47ab15bc059397b539a1f4`），解压至 `game/public/assets/` 共 36,109 个文件、约 1.64 GB（`hd` 634 MB、`ground` 516 MB、`maps` 282 MB、`orig` 169 MB、`audio` 43 MB）。
-  - 单元测试：无素材环境下 21 passed / 26 skipped（105 passed / 381 skipped）；挂载完整素材后 **47 个测试文件 / 486 项测试 100% 通过**。
-- **原生依赖待清理项（M1 目标）**：
-  - `game/package.json`：含 `@capacitor/core`、`@capacitor/filesystem`、`@capacitor/share`、`@capacitor/screen-orientation`、`@capacitor/android`、`@capacitor/ios`、`@capacitor/cli` 及 `build:app` / `ios` / `package` 脚本。
-  - `game/src/ui/saves.ts`：含 `@capacitor/core` 与 `@capacitor/filesystem` 原生文件读写及迁移分支。
-  - `game/src/ui/share.ts`：含 `@capacitor/core`、`PhotoSaver` 插件、`@capacitor/filesystem` 与 `@capacitor/share` 分支。
-  - `game/src/ui/orientation.ts`：直接引用 `@capacitor/screen-orientation`。
-  - `game/src/ui/audio.ts`：第 249 行含针对 Capacitor iOS 本地资源 `r.status === 0` 的兼容判断。
-- **跨平台（Windows / macOS）与单元测试已知问题（已修复）**：
-  1. `src/core/local-companies.test.ts`：已将 `boards` 解析移入 `beforeAll` 并补充 `existsSync(japanFile)` 检查，解决无本地素材环境下 Vitest 收集阶段报 `ENOENT` 的问题。
-  2. `src/ui/lang.test.ts`：已在 `beforeAll` 中通过 `vi.stubGlobal('navigator', { languages: [] })` 与 `setLang('hant')` 固定初始语言状态，解决 Node 21+ 在 `zh-CN` 系统语言下默认返回 `'hans'` 导致断言失败的问题。
-  3. `scripts/link-assets.mjs`：已将 `symlinkSync(source, link)` 改为 `symlinkSync(source, link, 'junction')`，同时兼容无管理员权限的 Windows 与 macOS。
+  - 素材包：`rich4-assets.tar`（SHA-256: `0a2296aa05c8c91edd578475fa0615e07adfb8725b47ab15bc059397b539a1f4`），解压至 `game/public/assets/` 共 36,109 个文件、约 1.64 GB（`npm run audit:assets` 校验 0 缺失，`shell` 包 53 文件 / 7.30 MiB）。
+  - 单元测试：**55 个测试文件 / 519 项测试 100% 通过**。
+- **M1–M6 核心交付摘要**：
+  - **M1（纯 Web 化）**：彻底移除 `@capacitor/*` 原生依赖与平台分支，`saves.ts` / `share.ts` / `orientation.ts` / `audio.ts` 全部收敛为纯 Web API，支持 `/rich4/` 子路径与 `absAssetUrl()`。
+  - **M2（资源分层与加载器）**：新增 `audit:assets`、`bundle:web`（`shell / core / map / ground / optional`）与 `AssetLoader`（并发控制、指数退避重试、去重、404 fail-fast）。
+  - **M3（部署、验证与回滚）**：新增 `deploy/nginx-rich4.conf`、`verify:web` 与 `release:web` 原子软链发布及一键回滚脚本。
+  - **M4（渲染接口演进）**：抽离纯函数等角投影（`projection.ts`）、`BoardRenderer` 接口、`Canvas2DBoardRenderer`、`WebGLBoardRenderer`（含纹理预算 LRU 与上下文丢失恢复）及 `RenderMetricsCollector`（`window.__rich4Perf`），默认保留 Canvas 2D 主渲染器。
+  - **M5（联机安全与存档导入导出）**：移除源码硬编码 TURN 凭据，新增协议版本与消息结构/大小校验（`validateIncomingMsg`），新增存档 JSON 导入/导出、防原型污染校验与覆写前自动备份槽位。
+  - **M6（PWA 与离线包/诊断）**：新增受 `/rich4/` 作用域约束的 App Shell PWA（`manifest.webmanifest` + `sw.js`）、紧急停用开关（`?nosw=1`）、配额检测与按需地图离线包管理（`offline-pwa.ts`）、可选 CDN 前缀解析及匿名脱敏诊断环形缓冲区（`window.__rich4Diag`）。

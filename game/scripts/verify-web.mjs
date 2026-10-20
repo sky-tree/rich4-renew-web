@@ -107,7 +107,8 @@ export function simulateStaticRequest(rawUrl, distDir, publicAssetsDir, basePref
   const ext = extname(filePath);
   const mime = MIME_TYPES[ext] || 'application/octet-stream';
   const isImmutable = /^assets\/(index-|zh-hans-|huninn-)/.test(rel);
-  const cacheControl = rel === 'index.html' || rel === 'release-manifest.json'
+  const isNoCache = ['index.html', 'release-manifest.json', 'manifest.webmanifest', 'sw.js', 'assets/web-packs.json'].includes(rel);
+  const cacheControl = isNoCache
     ? 'no-cache, must-revalidate'
     : isImmutable
       ? 'public, max-age=31536000, immutable'
@@ -148,10 +149,25 @@ export async function runHttpSmokeTest(distDir, publicAssetsDir, basePrefix = '/
   for (const ref of manifest.entryReferences) {
     const rBundle = simulateStaticRequest(`${cleanPrefix}/${ref}`, distDir, publicAssetsDir, basePrefix);
     if (rBundle.status !== 200) throw new Error(`Bundle ${ref} returned ${rBundle.status}`);
-    if (!rBundle.headers['cache-control']?.includes('immutable')) {
-      throw new Error(`Expected immutable Cache-Control on ${ref}`);
+    if (ref === 'manifest.webmanifest') {
+      if (!rBundle.headers['cache-control']?.includes('no-cache')) {
+        throw new Error(`Expected no-cache Cache-Control on ${ref}`);
+      }
+      checks.push(`GET ${cleanPrefix}/${ref} -> 200 (${rBundle.headers['content-type']}, no-cache)`);
+    } else {
+      if (!rBundle.headers['cache-control']?.includes('immutable')) {
+        throw new Error(`Expected immutable Cache-Control on ${ref}`);
+      }
+      checks.push(`GET ${cleanPrefix}/${ref} -> 200 (${rBundle.headers['content-type']}, immutable)`);
     }
-    checks.push(`GET ${cleanPrefix}/${ref} -> 200 (${rBundle.headers['content-type']}, immutable)`);
+  }
+
+  if (existsSync(join(distDir, 'sw.js'))) {
+    const rSw = simulateStaticRequest(`${cleanPrefix}/sw.js`, distDir, publicAssetsDir, basePrefix);
+    if (rSw.status !== 200 || !rSw.headers['cache-control']?.includes('no-cache')) {
+      throw new Error(`Invalid /rich4/sw.js response or Cache-Control`);
+    }
+    checks.push(`GET ${cleanPrefix}/sw.js -> 200 (Service Worker App Shell, no-cache)`);
   }
 
   const r404 = simulateStaticRequest(`${cleanPrefix}/assets/does-not-exist-9999.png`, distDir, publicAssetsDir, basePrefix);
