@@ -1,18 +1,32 @@
 /** Loads the locally linked game data and art (see scripts/link-assets.mjs). */
 import { defaultAssetLoader } from '../assets/loader';
+import { resolveCdnAssetUrl } from '../assets/offline-pwa';
 import { parseBoard, type Board, type RawMap } from '../core/board';
 
 export const ASSETS = `${import.meta.env.BASE_URL}assets`;
 
 /**
- * Resolves an asset path to an absolute URL against the document base URI when running in the browser,
- * preventing relative `url(...)` inside CSS custom properties from resolving against bundled `assets/*.css`.
+ * Resolves an asset path through the optional CDN base (if configured) or against the document base URI
+ * when running in the browser, preventing relative `url(...)` inside CSS custom properties from resolving
+ * against bundled `assets/*.css`.
  */
 export function absAssetUrl(src: string): string {
+  const cdnResolved = resolveCdnAssetUrl(src);
+  if (/^https?:\/\//i.test(cdnResolved)) return cdnResolved;
   try {
-    if (typeof document !== 'undefined' && document.baseURI) return new URL(src, document.baseURI).href;
+    if (typeof document !== 'undefined' && document.baseURI) return new URL(cdnResolved, document.baseURI).href;
   } catch { /* fallback */ }
-  return src;
+  return cdnResolved;
+}
+
+/**
+ * Returns the core URLs (map JSON, background image, and thumbnail) for a single map's opt-in offline cache pack (M6-02).
+ */
+export function mapOfflineUrls(entry: MapInfo): string[] {
+  const base = entry.id >= 1000 ? `${ASSETS}/maps/custom/${entry.id}` : `${ASSETS}/maps/map-${entry.id}`;
+  const dataUrl = entry.data ? `${ASSETS}/maps/${entry.data}` : `${base}.json`;
+  const imageUrl = entry.image ? `${ASSETS}/maps/${entry.image}` : `${base}.png`;
+  return [entry.thumbnail, dataUrl, imageUrl].filter(Boolean);
 }
 
 /**
@@ -24,7 +38,8 @@ export function absAssetUrl(src: string): string {
 export interface MapInfo { id: number; name: string; thumbnail: string; custom: boolean; kind: 'orig' | 'custom'; data?: string; image?: string; hidden?: boolean }
 
 const images = new Map<string, Promise<HTMLImageElement>>();
-export function image(url: string): Promise<HTMLImageElement> {
+export function image(rawUrl: string): Promise<HTMLImageElement> {
+  const url = resolveCdnAssetUrl(rawUrl);
   let p = images.get(url);
   if (!p) {
     p = new Promise<HTMLImageElement>((resolve, reject) => {

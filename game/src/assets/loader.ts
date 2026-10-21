@@ -1,7 +1,8 @@
 /**
  * Web asset loader with concurrency limiting, in-flight request deduplication,
- * exponential backoff retry for transient network/5xx errors, and fail-fast on HTTP 404 (M2).
+ * exponential backoff retry for transient network/5xx errors, and fail-fast on HTTP 404 (M2 & M6 CDN).
  */
+import { defaultTelemetry, resolveCdnAssetUrl } from './offline-pwa';
 
 export class AssetLoadError extends Error {
   constructor(
@@ -125,14 +126,19 @@ export class AssetLoader {
    * Fetches and parses a JSON resource with in-flight deduplication and retry.
    * Failed requests are evicted from the in-flight map so a manual retry can succeed.
    */
-  fetchJson<T>(url: string): Promise<T> {
+  fetchJson<T>(rawUrl: string): Promise<T> {
+    const url = resolveCdnAssetUrl(rawUrl);
     const existing = this.inflightJson.get(url);
     if (existing) return existing as Promise<T>;
+    const t0 = Date.now();
     const p = (async () => {
       const res = await this.fetchWithRetry(url);
       try {
-        return (await res.json()) as T;
+        const parsed = (await res.json()) as T;
+        defaultTelemetry.record('asset', 'json-ok', { status: res.status, durationMs: Date.now() - t0 });
+        return parsed;
       } catch {
+        defaultTelemetry.record('asset', 'json-corrupt', { status: res.status, durationMs: Date.now() - t0 });
         throw new AssetLoadError(`資源清單損壞（JSON 解析失敗）：${url}`, url, 'corrupt');
       }
     })().finally(() => {

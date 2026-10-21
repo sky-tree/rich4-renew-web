@@ -4,15 +4,15 @@
 
 ## 总览
 
-| 阶段 | 优先级 | 核心产物 | 前置依赖 | 状态 |
-| --- | --- | --- | --- | --- |
-| M0 开发基线与合规闸门 | P0 | 跑通现有代码检查、清单、许可方案 | Fork 已完成 | **已完成** |
-| M1 纯 Web 化 | P0 | 无 Capacitor/Electron 依赖的 Web 构建与浏览器可玩版本 | M0 | **已完成** |
-| M2 网页资源分层 | P0/P1 | 资源报告、分包清单、缺失恢复、首屏轻量化 | M1 | **已完成** |
-| M3 小范围 Web 测试发布 | P0 | 自动化验证、Nginx 测试站、回滚能力 | M1+M2+授权 | **已完成** |
-| M4 PixiJS/WebGL 渲染实验 | P1 | 单地图对照、指标、是否迁移决策 | M2 基准 | **已完成** |
-| M5 联机生产化与存档增强 | P1/P2 | 可控信令/TURN、存档迁移与备份 | M3 | **已完成** |
-| M6 PWA 与公网规模优化 | P2 | 可选离线包、CDN、监控与扩展 | M3，视需求 | **已完成** |
+| 阶段 | 优先级 | 核心产物 | 前置依赖 | 代码实现与本地测试 | 云端部署与多设备实机验收 |
+| --- | --- | --- | --- | --- | --- |
+| M0 开发基线与合规闸门 | P0 | 跑通现有代码检查、清单、许可方案 | Fork 已完成 | **已完成**（55 文件 / 521 测试） | 不适用（本地基线） |
+| M1 纯 Web 化 | P0 | 无 Capacitor/Electron 依赖的 Web 构建与浏览器可玩版本 | M0 | **已完成**（手动分包主 JS ~325 KB） | **待云端实机回归** |
+| M2 网页资源分层 | P0/P1 | 资源报告、真实内容 SHA-256、分包清单、缺失恢复 | M1 | **已完成**（36,109 文件真实哈希） | **待云端实测首屏耗时** |
+| M3 小范围 Web 测试发布 | P0 | 严格素材校验、不可变发布、Nginx 配置、回滚与 CI | M1+M2+授权 | **已完成**（含 GitHub Actions CI） | **待部署至私人云端 Nginx** |
+| M4 PixiJS/WebGL 渲染实验 | P1 | 着色器绘制管线、`BoardView` 接入、Canvas 主用决策 | M2 基准 | **已完成**（实验后端可切换） | **保持实验状态（Canvas 2D 主用）** |
+| M5 联机生产化与存档增强 | P1/P2 | 聊天防 XSS、重连令牌承诺、座位归属校验、6 位房间码、存档备份 | M3 | **已完成**（含安全回归单测） | **待跨网多设备联机实测** |
+| M6 PWA 与公网规模优化 | P2 | 构建产物预缓存、`/rich4/` 作用域注销、选图离线包 UI、彻底脱敏 | M3，视需求 | **已完成**（含 SW 注入校验） | **待云端 HTTPS 离线实测** |
 
 ## M0 · 基线、依赖、授权与风险（已完成 · 2026-10-21）
 
@@ -86,11 +86,11 @@
 
 ## M6 · PWA、缓存与规模优化（已完成 · 2026-10-21）
 
-- [x] M6-01 App Shell PWA 清单（`public/manifest.webmanifest`）、基础 Service Worker（`public/sw.js`）与紧急停用回滚开关（`?nosw=1` / `localStorage['rich4.disableSW']`）；严格限定在当前作用域（如 `/rich4/`），绝不全量静默预缓存 1.64 GB 地图和音效。
-- [x] M6-02 可选地图离线包按需下载/进度回调/取消回滚/删除（`downloadMapOfflinePack` / `removeMapOfflinePack` / `listCachedOfflineMaps` / `purgeStaleOfflineCaches`）、存储配额检测（`estimateStorageQuota` / `canFitOfflinePack`，默认预留 150 MiB 安全余量）与失败反馈（`src/assets/offline-pwa.ts`）。
-- [x] M6-03 支持可选 CDN/对象存储静态资源基础路径解析（`VITE_RICH4_ASSET_CDN` / `window.__RICH4_ASSET_CDN__` / `resolveCdnAssetUrl`），未配置时默认同源加载。
-- [x] M6-04 建立安全、匿名的本地异常/性能诊断环形缓冲区（`TelemetryRingBuffer` / `window.__rich4Diag`），自动脱敏剥离 TURN 凭据、密码、存档数据与房间聊天内容。
-- [x] M6-05 完成 M0–M6 全量回归验证（`55 passed` 测试文件 / `519 passed` 测试用例，`verify:web` 8 项冒烟检查全部通过）。
+- [x] M6-01 App Shell PWA 清单（`public/manifest.webmanifest`）、构建期自动注入 JS/CSS 预缓存列表的 Service Worker（`public/sw.js`）与仅注销 `/rich4/` 作用域的紧急停用开关（`?nosw=1` / `localStorage['rich4.disableSW']`）；绝不全量静默预缓存 1.64 GB 地图和音效。
+- [x] M6-02 可选地图离线包按需下载/进度回调/取消回滚/删除（`downloadMapOfflinePack` / `removeMapOfflinePack` / `listCachedOfflineMaps` / `purgeStaleOfflineCaches`）、绑定版本与内容哈希 `@<hash>`、存储配额检测（`estimateStorageQuota` / `canFitOfflinePack`）并接入新游戏选图界面「離線快取」按钮（`src/assets/offline-pwa.ts`、`src/ui/main.ts`）。
+- [x] M6-03 支持可选 CDN/对象存储静态资源基础路径解析（`VITE_RICH4_ASSET_CDN` / `window.__RICH4_ASSET_CDN__` / `resolveCdnAssetUrl`），并统一接入 `AssetLoader`、`fetchJson()`、`absAssetUrl()` 与 `image()`。
+- [x] M6-04 建立安全、匿名的本地异常/性能诊断环形缓冲区（`TelemetryRingBuffer` / `window.__rich4Diag`），彻底抹除 `turn:...` URI 内嵌凭据、密码、存档数据与房间聊天内容，并支持结构化白名单指标。
+- [x] M6-05 完成 M0–M6 全量回归验证及 2026-10-21 代码审核报告全部 P0/P1/P2 问题修复（`55 passed` 测试文件 / `521 passed` 测试用例，`verify:web` 严格发布校验 9 项全过）。
 
 ## 推荐的 PR 拆分
 

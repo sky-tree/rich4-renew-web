@@ -27,15 +27,37 @@ export const LOBBY = `${PREFIX}lobby-v2`;
 const roomId = (code: string) => `${PREFIX}room-${code}`;
 
 /** `nick`: the name the player gave themself (the user 2026-10-19); `name` is it or the character's. */
-export interface Member { id: string; name: string; character: number; region?: string; nick?: string; /** In the game: its phone is gone (the host tells everyone). */ away?: boolean }
+export interface Member {
+  id: string;
+  name: string;
+  character: number;
+  region?: string;
+  nick?: string;
+  /** In the game: its phone is gone (the host tells everyone). */
+  away?: boolean;
+  /** One-way SHA-256 commitment of this member's secret reconnect token (never the plaintext token). */
+  tokenCommit?: string;
+}
 
 /** A nickname as kept and shown: no markup characters, trimmed, at most NICK_MAX characters. */
 export const NICK_MAX = 7;
 export const cleanNick = (s: unknown) => [...String(s ?? '').replace(/[<>&"'`\\]/g, '').replace(/\s+/g, ' ').trim()].slice(0, NICK_MAX).join('');
+/** Clamps a character index to a safe integer in 0..11. */
+export const safeCharacterIndex = (c: unknown, fallback = 0): number => {
+  if (typeof c !== 'number' || !Number.isInteger(c) || c < 0 || c >= 12) return fallback;
+  return c;
+};
 /** The member's shown name: the nickname, else the character's. */
-const named = (m: Member) => { m.nick = cleanNick(m.nick) || undefined; m.name = m.nick || CHARACTERS[m.character]?.name || '玩家'; return m; };
+const named = (m: Member) => {
+  m.character = safeCharacterIndex(m.character, 0);
+  m.nick = cleanNick(m.nick) || undefined;
+  m.name = m.nick || CHARACTERS[m.character]?.name || '玩家';
+  return m;
+};
 /** Players in a room (the user 2026-10-19: eight; the game's NPCs come after them, core/game.ts npcBase). */
 export const ROOM_MAX = 8;
+
+export const VALID_STICKER_KEYS = new Set(['good', 'laugh', 'cry', 'angry', 'party', 'rich', 'please', 'shock']);
 
 /** A room in the list. `private`: a 私享 room counted only (its code is a random token, never shown or joinable). */
 export interface RoomInfo { code: string; host: string; character: number; map: string; players: number; max: number; at: number; region?: string; private?: boolean }
@@ -70,11 +92,23 @@ export const MAX_MSG_BYTES = 65536;
 export const MAX_LOG_REPLAY = 5000;
 
 export type Msg =
-  | { t: 'hi'; name: string; character: number; have?: number; region?: string; prev?: string; nick?: string; proto?: number; rules?: string }
+  | {
+      t: 'hi';
+      name: string;
+      character: number;
+      have?: number;
+      region?: string;
+      prev?: string;
+      nick?: string;
+      proto?: number;
+      rules?: string;
+      tokenCommit?: string;
+      reconnectToken?: string;
+    }
   | { t: 'char'; character: number; nick?: string }
   | { t: 'lobby'; members: Member[]; map: string; shared: boolean }
   | { t: 'start'; start: StartMsg }
-  | { t: 'ans'; seq: number; v: unknown; u?: boolean }
+  | { t: 'ans'; seq: number; v: unknown; u?: boolean; seat?: number }
   | { t: 'log'; from: number; answers: [unknown, boolean][]; total: number }
   | { t: 'digest'; seq: number; h: number }
   | { t: 'chat'; line: ChatLine }
@@ -84,6 +118,155 @@ export type Msg =
   | { t: 'bye'; why?: string };
 
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+const ROOM_CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+
+function randomBytes(size: number): Uint8Array {
+  const buf = new Uint8Array(size);
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    crypto.getRandomValues(buf);
+  } else {
+    for (let i = 0; i < size; i++) buf[i] = Math.floor(Math.random() * 256);
+  }
+  return buf;
+}
+
+/**
+ * Generates a high-entropy alphanumeric room invitation code (6 chars = 30 bits of entropy, >1 billion combinations)
+ * using CSPRNG instead of predictable 4-digit `Math.random()`.
+ */
+export function generateRoomCode(length = 6): string {
+  const bytes = randomBytes(length);
+  let out = '';
+  for (let i = 0; i < length; i++) {
+    out += ROOM_CODE_ALPHABET[bytes[i] % ROOM_CODE_ALPHABET.length];
+  }
+  return out;
+}
+
+/** Generates a 128-bit secret reconnect token for Commit-Reveal session authentication. */
+export function generateReconnectToken(): string {
+  const bytes = randomBytes(16);
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Pure synchronous SHA-256 (FIPS 180-4) for Commit-Reveal reconnect token hashing across all browser/test contexts.
+const SHA256_K = new Uint32Array([
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+  0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+  0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+  0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+  0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+  0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+  0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+]);
+
+function rotr(x: number, n: number): number {
+  return (x >>> n) | (x << (32 - n));
+}
+
+export function commitReconnectToken(token: string): string {
+  const bytes = new TextEncoder().encode(`rich4-reconnect-v1:${token}`);
+  const bitLen = bytes.length * 8;
+  const padLen = ((bytes.length + 9 + 63) & ~63);
+  const buf = new Uint8Array(padLen);
+  buf.set(bytes);
+  buf[bytes.length] = 0x80;
+  const view = new DataView(buf.buffer);
+  view.setUint32(padLen - 4, bitLen >>> 0, false);
+  let h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a;
+  let h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
+  const w = new Uint32Array(64);
+  for (let off = 0; off < padLen; off += 64) {
+    for (let i = 0; i < 16; i++) w[i] = view.getUint32(off + i * 4, false);
+    for (let i = 16; i < 64; i++) {
+      const s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+      const s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
+    }
+    let a = h0, b = h1, c = h2, d = h3, e = h4, f = h5, g = h6, h = h7;
+    for (let i = 0; i < 64; i++) {
+      const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+      const ch = (e & f) ^ (~e & g);
+      const temp1 = (h + S1 + ch + SHA256_K[i] + w[i]) >>> 0;
+      const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+      const maj = (a & b) ^ (a & c) ^ (b & c);
+      const temp2 = (S0 + maj) >>> 0;
+      h = g; g = f; f = e; e = (d + temp1) >>> 0;
+      d = c; c = b; b = a; a = (temp1 + temp2) >>> 0;
+    }
+    h0 = (h0 + a) >>> 0; h1 = (h1 + b) >>> 0; h2 = (h2 + c) >>> 0; h3 = (h3 + d) >>> 0;
+    h4 = (h4 + e) >>> 0; h5 = (h5 + f) >>> 0; h6 = (h6 + g) >>> 0; h7 = (h7 + h) >>> 0;
+  }
+  return [h0, h1, h2, h3, h4, h5, h6, h7].map(v => v.toString(16).padStart(8, '0')).join('');
+}
+
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+/**
+ * Verifies a reconnect identity claim (`hi.prev`) against the member's SHA-256 token commitment (P0-2 fix).
+ * Prevents any third party who knows the room code and target Peer ID from hijacking a player's seat.
+ */
+export function verifyReconnectClaim(
+  members: readonly Member[],
+  prevId: string,
+  reconnectToken: string | undefined,
+  prevConnectionStillOpen: boolean,
+): { ok: true; member: Member } | { ok: false; reason: string } {
+  if (prevConnectionStillOpen) {
+    return { ok: false, reason: 'peer-still-active' };
+  }
+  const target = members.find(m => m.id === prevId);
+  if (!target) {
+    return { ok: false, reason: 'unknown-prev-peer' };
+  }
+  if (!target.tokenCommit || typeof reconnectToken !== 'string' || reconnectToken.length < 16 || reconnectToken.length > 128) {
+    return { ok: false, reason: 'missing-reconnect-token' };
+  }
+  const actualCommit = commitReconnectToken(reconnectToken);
+  if (!constantTimeEqual(actualCommit, target.tokenCommit)) {
+    return { ok: false, reason: 'invalid-reconnect-token' };
+  }
+  return { ok: true, member: target };
+}
+
+/**
+ * Verifies that an incoming `ans` lockstep action was sent by the peer who actually owns the seat
+ * for question `seq` (P0-2 fix).
+ */
+export function authorizeSeatAnswer(
+  seats: Record<string, number> | undefined,
+  kickedSeats: ReadonlySet<number>,
+  expectedSeats: ReadonlyMap<number, number>,
+  peerId: string,
+  seq: number,
+  claimedSeat?: number,
+): { ok: true; seat: number } | { ok: false; reason: string } {
+  if (!seats) {
+    return { ok: false, reason: 'game-not-started' };
+  }
+  const ownedSeat = seats[peerId];
+  if (typeof ownedSeat !== 'number' || !Number.isInteger(ownedSeat) || ownedSeat < 0) {
+    return { ok: false, reason: 'no-seat-owned' };
+  }
+  if (kickedSeats.has(ownedSeat)) {
+    return { ok: false, reason: 'seat-kicked' };
+  }
+  if (claimedSeat !== undefined && claimedSeat !== ownedSeat) {
+    return { ok: false, reason: 'seat-mismatch' };
+  }
+  const expectedSeat = expectedSeats.get(seq);
+  if (expectedSeat !== undefined && expectedSeat !== ownedSeat) {
+    return { ok: false, reason: 'not-active-turn-seat' };
+  }
+  return { ok: true, seat: ownedSeat };
+}
 
 export interface PartyNetConfig {
   peerServer?: {
@@ -139,13 +322,15 @@ export function buildPeerOptions() {
   };
 }
 
+const SAFE_PEER_ID_RE = /^[a-zA-Z0-9_.:-]{1,128}$/;
+
 /**
  * Validates incoming P2P messages for structural safety, byte size cap, protocol compatibility,
- * sequence bounds, and sender seat/identity authorization (M5-03).
+ * sequence bounds, and strict chat/seat schema (P0-1 & P0-2 & M5-03).
  */
 export function validateIncomingMsg(
   raw: unknown,
-   maxBytes = MAX_MSG_BYTES,
+  maxBytes = MAX_MSG_BYTES,
 ): { ok: true; msg: Msg } | { ok: false; reason: string } {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return { ok: false, reason: 'invalid-object' };
@@ -160,15 +345,24 @@ export function validateIncomingMsg(
   if (typeof m.t !== 'string') return { ok: false, reason: 'missing-type' };
   switch (m.t) {
     case 'hi':
-      if (typeof m.character !== 'number' || m.character < 0 || m.character >= 12) {
+      if (typeof m.character !== 'number' || !Number.isInteger(m.character) || m.character < 0 || m.character >= 12) {
         return { ok: false, reason: 'invalid-character' };
       }
       if (m.proto !== undefined && m.proto !== PARTY_PROTOCOL_VERSION) {
         return { ok: false, reason: 'version-mismatch' };
       }
+      if (m.prev !== undefined && (typeof m.prev !== 'string' || !SAFE_PEER_ID_RE.test(m.prev))) {
+        return { ok: false, reason: 'invalid-prev-id' };
+      }
+      if (m.tokenCommit !== undefined && (typeof m.tokenCommit !== 'string' || !/^[0-9a-f]{64}$/.test(m.tokenCommit))) {
+        return { ok: false, reason: 'invalid-token-commit' };
+      }
+      if (m.reconnectToken !== undefined && (typeof m.reconnectToken !== 'string' || m.reconnectToken.length > 128)) {
+        return { ok: false, reason: 'invalid-reconnect-token' };
+      }
       return { ok: true, msg: m as Msg };
     case 'char':
-      if (typeof m.character !== 'number' || m.character < 0 || m.character >= 12) {
+      if (typeof m.character !== 'number' || !Number.isInteger(m.character) || m.character < 0 || m.character >= 12) {
         return { ok: false, reason: 'invalid-character' };
       }
       return { ok: true, msg: m as Msg };
@@ -176,14 +370,48 @@ export function validateIncomingMsg(
       if (typeof m.seq !== 'number' || !Number.isInteger(m.seq) || m.seq < 0 || m.seq > MAX_LOG_REPLAY) {
         return { ok: false, reason: 'invalid-seq' };
       }
-      return { ok: true, msg: m as Msg };
-    case 'chat':
-      if (!m.line || typeof m.line !== 'object' || typeof m.line.text !== 'string') {
-        return { ok: false, reason: 'invalid-chat' };
+      if (m.seat !== undefined && (typeof m.seat !== 'number' || !Number.isInteger(m.seat) || m.seat < 0 || m.seat >= ROOM_MAX)) {
+        return { ok: false, reason: 'invalid-seat' };
       }
       return { ok: true, msg: m as Msg };
+    case 'chat': {
+      if (!m.line || typeof m.line !== 'object' || Array.isArray(m.line)) {
+        return { ok: false, reason: 'invalid-chat' };
+      }
+      const l = m.line as unknown as Record<string, unknown>;
+      if (typeof l.character !== 'number' || !Number.isInteger(l.character) || l.character < -1 || l.character >= 12) {
+        return { ok: false, reason: 'invalid-chat-character' };
+      }
+      if (typeof l.text !== 'string') {
+        return { ok: false, reason: 'invalid-chat' };
+      }
+      const trimmedText = l.text.trim();
+      if (!trimmedText || trimmedText.length > 200) {
+        return { ok: false, reason: 'invalid-chat-text' };
+      }
+      // If formatted like a reaction sticker `[s:...]`, strictly enforce whitelist key
+      if (trimmedText.startsWith('[s:') || trimmedText.endsWith(']')) {
+        const stickerMatch = /^\[s:([a-z]+)\]$/.exec(trimmedText);
+        if (trimmedText.startsWith('[s:') && (!stickerMatch || !VALID_STICKER_KEYS.has(stickerMatch[1]))) {
+          return { ok: false, reason: 'invalid-chat-sticker' };
+        }
+      }
+      const from = typeof l.from === 'string' ? l.from : '';
+      if (from && !SAFE_PEER_ID_RE.test(from)) {
+        return { ok: false, reason: 'invalid-chat-sender' };
+      }
+      const rawName = typeof l.name === 'string' ? l.name : '';
+      const cleanLine: ChatLine = {
+        from,
+        name: cleanNick(rawName) || (l.character === -1 ? '系統' : CHARACTERS[l.character]?.name || '玩家'),
+        character: l.character,
+        text: trimmedText.slice(0, 40),
+        at: typeof l.at === 'number' && Number.isFinite(l.at) ? l.at : Date.now(),
+      };
+      return { ok: true, msg: { t: 'chat', line: cleanLine } };
+    }
     case 'vote':
-      if (typeof m.target !== 'string' || !m.target) {
+      if (typeof m.target !== 'string' || !SAFE_PEER_ID_RE.test(m.target)) {
         return { ok: false, reason: 'invalid-vote' };
       }
       return { ok: true, msg: m as Msg };
@@ -370,6 +598,9 @@ export class Room {
   private log: [unknown, boolean][] = [];
   private waiters = new Map<number, (v: unknown) => void>();
   private digests = new Map<number, number>();
+  /** Maps question `seq` -> expected player `seat` so the host rejects spoofed answers from other seats. */
+  private expectedSeats = new Map<number, number>();
+  private secretToken = generateReconnectToken();
   private closed = false;
   myId = '';
 
@@ -380,12 +611,12 @@ export class Room {
     this.map = map; this.shared = shared;
     let peer: Peer | null = null;
     for (let k = 0; k < 6 && !peer; k++) {
-      const code = String(1000 + Math.floor(Math.random() * 9000));
+      const code = generateRoomCode(6);
       peer = await open(roomId(code));
       if (peer) this.code = code;
     }
     if (!peer) throw new Error('無法建立房間（網路連不上）');
-    this.members = [named({ id: peer.id, ...this.me })];
+    this.members = [named({ id: peer.id, ...this.me, tokenCommit: commitReconnectToken(this.secretToken) })];
     this.becomeHost(peer);
     return this.code;
   }
@@ -411,7 +642,7 @@ export class Room {
     this.host = true;
     this.toHost = null;
     this.myId = peer.id;
-    if (prev && prev !== peer.id) this.rename(prev, peer.id);
+    if (prev && prev !== peer.id) this.rename(prev, peer.id, commitReconnectToken(this.secretToken));
     const me = this.members.find(x => x.id === this.myId);
     if (me) this.members = [me, ...this.members.filter(x => x !== me)];
     peer.on('connection', c => this.guest(c));
@@ -422,15 +653,23 @@ export class Room {
     for (const w of this.connWaiters.splice(0)) w();
   }
 
-  /** A player's peer id changed (a phone that became the host, or came back with a new connection). */
-  private rename(prev: string, id: string) {
-    for (const m of this.members) if (m.id === prev) m.id = id;
-    if (this.started && prev in this.started.seats) { this.started.seats[id] = this.started.seats[prev]; delete this.started.seats[prev]; }
+  /** A player's peer id changed (a phone that became the host, or came back with a new verified connection). */
+  private rename(prev: string, id: string, nextTokenCommit?: string) {
+    for (const m of this.members) {
+      if (m.id === prev) {
+        m.id = id;
+        if (nextTokenCommit) m.tokenCommit = nextTokenCommit;
+      }
+    }
+    if (this.started && prev in this.started.seats) {
+      this.started.seats[id] = this.started.seats[prev];
+      delete this.started.seats[prev];
+    }
   }
 
   /** Guest: joins the room with that code. */
   async join(code: string): Promise<void> {
-    this.code = code;
+    this.code = code.trim().toUpperCase();
     const peer = await open();
     if (!peer) throw new Error('網路連不上');
     this.asGuest(peer);
@@ -462,9 +701,31 @@ export class Room {
     const c = this.peer && await connect(this.peer, roomId(this.code));
     if (!c) return false;
     this.toHost = c;
-    c.on('data', d => this.fromHost(d as Msg));
+    c.on('data', d => {
+      const checked = validateIncomingMsg(d);
+      if (checked.ok) this.fromHost(checked.msg);
+    });
     c.on('close', () => { if (this.toHost === c) { this.toHost = null; if (!this.closed && !this.host) void this.rejoin(); } });
-    c.send({ t: 'hi', name: this.me.name, character: this.me.character, region: this.me.region, nick: this.me.nick, have: this.started ? this.log.length : undefined, prev, proto: PARTY_PROTOCOL_VERSION, rules: PARTY_RULES_VERSION } satisfies Msg);
+    const isReconnecting = Boolean(prev || this.started || this.members.some(x => x.id === this.myId));
+    let reconnectToken: string | undefined;
+    if (isReconnecting) {
+      reconnectToken = this.secretToken;
+      this.secretToken = generateReconnectToken();
+    }
+    const tokenCommit = commitReconnectToken(this.secretToken);
+    c.send({
+      t: 'hi',
+      name: this.me.name,
+      character: this.me.character,
+      region: this.me.region,
+      nick: this.me.nick,
+      have: this.started ? this.log.length : undefined,
+      prev,
+      proto: PARTY_PROTOCOL_VERSION,
+      rules: PARTY_RULES_VERSION,
+      tokenCommit,
+      ...(reconnectToken ? { reconnectToken } : {}),
+    } satisfies Msg);
     for (const w of this.connWaiters.splice(0)) w();
     return true;
   }
@@ -505,14 +766,30 @@ export class Room {
       const m = checked.msg;
       if (this.kickedIds.has(c.peer)) { c.send({ t: 'bye', why: '你已被投票請出房間' } satisfies Msg); return; }
       if (m.t === 'hi') {
-        if (m.prev && this.kickedIds.has(m.prev)) { c.send({ t: 'bye', why: '你已被投票請出房間' } satisfies Msg); return; }
-        if (m.prev) this.rename(m.prev, c.peer);
+        const claimedPrev = m.prev || (this.members.some(x => x.id === c.peer) ? c.peer : undefined);
+        if (claimedPrev) {
+          if (this.kickedIds.has(claimedPrev)) {
+            c.send({ t: 'bye', why: '你已被投票請出房間' } satisfies Msg);
+            return;
+          }
+          const existingConn = this.guests.get(claimedPrev);
+          const stillOpen = Boolean(existingConn && existingConn !== c && existingConn.open);
+          const verified = verifyReconnectClaim(this.members, claimedPrev, m.reconnectToken, stillOpen);
+          if (!verified.ok) {
+            c.send({ t: 'bye', why: '重連身分驗證失敗' } satisfies Msg);
+            return;
+          }
+          this.rename(claimedPrev, c.peer, m.tokenCommit);
+        } else if (this.started) {
+          // Once a game has started, strangers who do not hold an existing seat token cannot join mid-game.
+          c.send({ t: 'bye', why: '遊戲已經開始' } satisfies Msg);
+          return;
+        }
         this.guests.set(c.peer, c);
         if (this.started) {
           // Back after a drop, or to a new host: what it missed; it sends back what this phone lacks.
           const from = Math.max(0, Math.min(m.have ?? 0, this.log.length));
           c.send({ t: 'log', from, answers: this.log.slice(from), total: this.log.length } satisfies Msg);
-          if (!this.members.some(x => x.id === c.peer)) this.members.push(named({ id: c.peer, name: m.name, character: m.character, region: m.region, nick: m.nick }));
           for (const x of this.members) if (x.id === c.peer) x.away = false;
           this.lobbyChanged();
           this.onStatus('');
@@ -520,22 +797,48 @@ export class Room {
         }
         if (!this.members.some(x => x.id === c.peer)) {
           if (this.members.length >= ROOM_MAX) { c.send({ t: 'bye' } satisfies Msg); return; }
-          this.members.push(named({ id: c.peer, name: m.name, character: this.freeCharacter(m.character, c.peer), region: m.region, nick: m.nick }));
+          this.members.push(
+            named({
+              id: c.peer,
+              name: m.name,
+              character: this.freeCharacter(m.character, c.peer),
+              region: m.region,
+              nick: m.nick,
+              tokenCommit: m.tokenCommit,
+            }),
+          );
         }
         this.lobbyChanged();
       } else if (m.t === 'char') {
         const x = this.members.find(y => y.id === c.peer);
         if (x && !this.started) { x.character = this.freeCharacter(m.character, c.peer); x.nick = m.nick; named(x); this.lobbyChanged(); }
       } else if (m.t === 'ans') {
-        // Only accept answers from connected room members within bounded sequence window
+        // Strictly verify that `c.peer` is a room member AND owns the seat expected to answer `m.seq` (P0-2 fix).
         if (!this.members.some(y => y.id === c.peer)) return;
         if (m.seq > this.log.length + 64) return;
+        const auth = authorizeSeatAnswer(
+          this.started?.seats,
+          this.kickedSeats,
+          this.expectedSeats,
+          c.peer,
+          m.seq,
+          m.seat,
+        );
+        if (!auth.ok) return;
         this.record(m.seq, m.u ? undefined : m.v, true);
       } else if (m.t === 'chat') {
-        if (!this.members.some(y => y.id === c.peer)) return;
+        const sender = this.members.find(y => y.id === c.peer);
+        if (!sender) return;
         const cleanText = String(m.line.text ?? '').trim().slice(0, 40);
         if (!cleanText) return;
-        this.heard({ ...m.line, text: cleanText, from: c.peer });
+        // Construct ChatLine from authoritative host member state, never trusting remote `m.line.character` or `m.line.name`
+        this.heard({
+          from: c.peer,
+          name: sender.name,
+          character: safeCharacterIndex(sender.character, 0),
+          text: cleanText,
+          at: Date.now(),
+        });
       } else if (m.t === 'vote') {
         if (!this.members.some(y => y.id === c.peer)) return;
         this.voted(m.target, c.peer);
@@ -551,7 +854,7 @@ export class Room {
 
   freeCharacter(want: number, id: string): number {
     const used = new Set(this.members.filter(x => x.id !== id).map(x => x.character));
-    let c = want;
+    let c = safeCharacterIndex(want, 0);
     for (let k = 0; k < 12 && used.has(c); k++) c = (c + 1) % 12;
     return c;
   }
@@ -564,19 +867,24 @@ export class Room {
   setMap(map: string) { this.map = map; this.lobbyChanged(); }
   /** This phone's character and nickname (in the room, before the game). */
   setCharacter(c: number, nick = this.me.nick) {
-    this.me.character = c; this.me.nick = cleanNick(nick) || undefined;
-    if (this.host) { const x = this.members[0]; x.character = this.freeCharacter(c, x.id); x.nick = this.me.nick; named(x); this.lobbyChanged(); }
-    else this.toHost?.send({ t: 'char', character: c, nick: this.me.nick } satisfies Msg);
+    const safeChar = safeCharacterIndex(c, 0);
+    this.me.character = safeChar; this.me.nick = cleanNick(nick) || undefined;
+    if (this.host) { const x = this.members[0]; x.character = this.freeCharacter(safeChar, x.id); x.nick = this.me.nick; named(x); this.lobbyChanged(); }
+    else this.toHost?.send({ t: 'char', character: safeChar, nick: this.me.nick } satisfies Msg);
   }
 
   private fromHost(m: Msg) {
-    if (m.t === 'lobby') { this.members = m.members; this.map = m.map; this.shared = m.shared; this.onLobby(); this.onVotes(); }
+    if (m.t === 'lobby') { this.members = m.members.map(x => named({ ...x })); this.map = m.map; this.shared = m.shared; this.onLobby(); this.onVotes(); }
     else if (m.t === 'start') { this.begin(m.start); }
     else if (m.t === 'ans') this.record(m.seq, m.u ? undefined : m.v, false);
     else if (m.t === 'log') {
       m.answers.forEach(([v, u], k) => this.record(m.from + k, u ? undefined : v, false));
       // This phone has answers the (new) host lacks: send them on.
-      for (let seq = m.total; seq < this.log.length; seq++) { const e = this.log[seq]; if (e) this.toHost?.send({ t: 'ans', seq, v: e[0] ?? null, u: e[1] } satisfies Msg); }
+      const mySeat = this.started?.seats[this.myId];
+      for (let seq = m.total; seq < this.log.length; seq++) {
+        const e = this.log[seq];
+        if (e) this.toHost?.send({ t: 'ans', seq, v: e[0] ?? null, u: e[1], ...(mySeat !== undefined ? { seat: mySeat } : {}) } satisfies Msg);
+      }
     }
     else if (m.t === 'digest') this.digests.set(m.seq, m.h);
     else if (m.t === 'chat') this.heard(m.line);
@@ -607,6 +915,13 @@ export class Room {
     this.onStart(s);
   }
 
+  /** Registers which player seat is expected to answer lockstep question `seq`. */
+  expectQuestionSeat(seq: number, seat: number): void {
+    if (Number.isInteger(seq) && seq >= 0 && Number.isInteger(seat) && seat >= 0) {
+      this.expectedSeats.set(seq, seat);
+    }
+  }
+
   /** An answer to the game's question number `seq` (from this phone, or arriving). */
   private record(seq: number, v: unknown, fromGuest: boolean) {
     if (seq < this.log.length && this.log[seq] !== undefined) return;
@@ -619,9 +934,16 @@ export class Room {
     this.waiters.delete(seq);
   }
   /** This phone answered question `seq` (one of its seats, or a seat sent away when it hosts). */
-  answer(seq: number, v: unknown) {
+  answer(seq: number, v: unknown, seat?: number) {
     this.record(seq, v, false);
-    const m: Msg = { t: 'ans', seq, v: v ?? null, u: v === undefined };
+    const resolvedSeat = seat ?? this.expectedSeats.get(seq) ?? this.started?.seats[this.myId];
+    const m: Msg = {
+      t: 'ans',
+      seq,
+      v: v ?? null,
+      u: v === undefined,
+      ...(typeof resolvedSeat === 'number' ? { seat: resolvedSeat } : {}),
+    };
     if (this.host) { for (const c of this.guests.values()) c.open && c.send(m); }
     else this.toHost?.send(m);
   }

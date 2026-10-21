@@ -128,17 +128,17 @@ npm run assets
 
 ---
 
-## 6. 当前基线状态快照（M0–M6 全阶段收尾记录 · 2026-10-21）
+## 6. 当前基线状态快照（M0–M6 全阶段收尾与代码审核修复记录 · 2026-10-21）
 
-- **代码基线**：上游基线 `bb1093863f389620fb56bc630d8b32ef9a35e901`，已完成 M0–M6 全部里程碑改造与本地分阶段 Git 提交。
-- **编译与构建**：`npx tsc --noEmit` 零错误通过；`RICH4_NO_ASSETS=1 npm run build:web` 正常产出 `/rich4/` 子路径构建包及 PWA App Shell（`manifest.webmanifest`、`sw.js`）；`npm run verify:web` 8 项冒烟检查全部通过。
+- **代码基线**：上游基线 `bb1093863f389620fb56bc630d8b32ef9a35e901`，已完成 M0–M6 全部里程碑代码实现及 2026-10-21 代码审核报告（P0/P1/P2）全量修复；待在私人云端 Linux VPS 执行真实 Nginx 与跨设备联机生产验收。
+- **编译与构建**：`npx tsc --noEmit` 零错误通过；`RICH4_NO_ASSETS=1 npm run build:web` 正常产出 `/rich4/` 子路径构建包（手动分包后主 JS 降至 ~325 KB，无 >500 KB chunk 警告）及自动注入全量 JS/CSS 预缓存列表的 PWA App Shell（`manifest.webmanifest`、`sw.js`）；`npm run verify:web` 严格发布校验（含完整素材与真实字节 SHA-256 校验）全部通过；已配置 `.github/workflows/ci.yml`。
 - **本地素材与全量测试**：
-  - 素材包：`rich4-assets.tar`（SHA-256: `0a2296aa05c8c91edd578475fa0615e07adfb8725b47ab15bc059397b539a1f4`），解压至 `game/public/assets/` 共 36,109 个文件、约 1.64 GB（`npm run audit:assets` 校验 0 缺失，`shell` 包 53 文件 / 7.30 MiB）。
-  - 单元测试：**55 个测试文件 / 519 项测试 100% 通过**。
+  - 素材包：`rich4-assets.tar`（SHA-256: `0a2296aa05c8c91edd578475fa0615e07adfb8725b47ab15bc059397b539a1f4`），解压至 `game/public/assets/` 共 36,109 个文件、约 1.64 GB（`npm run audit:assets` 对全量文件真实字节计算 SHA-256 并校验 0 缺失，`shell` 包 53 文件 / 7.30 MiB）。
+  - 单元测试：**55 个测试文件 / 521 项测试 100% 通过**。
 - **M1–M6 核心交付摘要**：
-  - **M1（纯 Web 化）**：彻底移除 `@capacitor/*` 原生依赖与平台分支，`saves.ts` / `share.ts` / `orientation.ts` / `audio.ts` 全部收敛为纯 Web API，支持 `/rich4/` 子路径与 `absAssetUrl()`。
-  - **M2（资源分层与加载器）**：新增 `audit:assets`、`bundle:web`（`shell / core / map / ground / optional`）与 `AssetLoader`（并发控制、指数退避重试、去重、404 fail-fast）。
-  - **M3（部署、验证与回滚）**：新增 `deploy/nginx-rich4.conf`、`verify:web` 与 `release:web` 原子软链发布及一键回滚脚本。
-  - **M4（渲染接口演进）**：抽离纯函数等角投影（`projection.ts`）、`BoardRenderer` 接口、`Canvas2DBoardRenderer`、`WebGLBoardRenderer`（含纹理预算 LRU 与上下文丢失恢复）及 `RenderMetricsCollector`（`window.__rich4Perf`），默认保留 Canvas 2D 主渲染器。
-  - **M5（联机安全与存档导入导出）**：移除源码硬编码 TURN 凭据，新增协议版本与消息结构/大小校验（`validateIncomingMsg`），新增存档 JSON 导入/导出、防原型污染校验与覆写前自动备份槽位。
-  - **M6（PWA 与离线包/诊断）**：新增受 `/rich4/` 作用域约束的 App Shell PWA（`manifest.webmanifest` + `sw.js`）、紧急停用开关（`?nosw=1`）、配额检测与按需地图离线包管理（`offline-pwa.ts`）、可选 CDN 前缀解析及匿名脱敏诊断环形缓冲区（`window.__rich4Diag`）。
+  - **M1（纯 Web 化）**：彻底移除 `@capacitor/*` 原生依赖与平台分支，`saves.ts` / `share.ts` / `orientation.ts` / `audio.ts` 全部收敛为纯 Web API，支持 `/rich4/` 子路径与 `absAssetUrl()`，配置 `manualChunks` 拆分 JS 包体积。
+  - **M2（资源分层与真实内容哈希）**：新增 `audit:assets`（真实文件字节 SHA-256）、`bundle:web`（`shell / core / map / ground / optional`）与 `AssetLoader`（并发控制、指数退避重试、去重、404 fail-fast）。
+  - **M3（部署、严格验证与不可变发布）**：新增 `deploy/nginx-rich4.conf`、`verify:web`（默认强制校验完整素材与真实 SHA-256，`verify:web:code` 供无素材 CI 使用）、`release:web`（校验 releaseId 防路径穿越、拒绝覆盖已有不可变版本目录、支持一键回滚）及 GitHub Actions CI。
+  - **M4（渲染接口演进与 WebGL 着色器管线）**：抽离纯函数等角投影（`projection.ts`）、`BoardRenderer` 接口、`Canvas2DBoardRenderer`、`WebGLBoardRenderer`（含完整 Vertex/Fragment Shader 正交投影四边形绘制管线、纹理预算 LRU 与上下文丢失恢复）及 `RenderMetricsCollector`（`window.__rich4Perf`），`BoardView` 支持 `?renderer=webgl` 切换，默认保留 Canvas 2D 主渲染器。
+  - **M5（联机安全加固与存档导入导出）**：移除源码硬编码 TURN 凭据；彻底修复联机聊天 DOM XSS（严格 Schema 校验 + 房主权威角色编号 + 纯 DOM API 渲染）；新增 SHA-256 重连令牌承诺（`tokenCommit` / `reconnectToken`）防断线重连身份冒用；新增锁步 `ans` 座位归属强校验（`authorizeSeatAnswer`）与 6 位高熵邀请码（`generateRoomCode`）；新增存档 JSON 导入/导出、防原型污染校验与覆写前自动备份槽位。
+  - **M6（PWA 与离线包/脱敏诊断）**：构建期自动向 `sw.js` 注入全量入口 JS/CSS 预缓存列表与版本哈希；`unregisterAllServiceWorkers()` 严格仅注销 `/rich4/` 作用域而不影响同源其他应用；离线包缓存名绑定版本与内容哈希 `@<hash>` 并接入新游戏选图界面「離線快取」按钮；CDN 前缀解析统一接入 `AssetLoader` / `assets.ts`；诊断环形缓冲区（`window.__rich4Diag`）彻底抹除 `turn:...` 内嵌凭据并支持结构化白名单指标。

@@ -3,20 +3,25 @@
  *
  * Design principles:
  * 1. Scoped strictly to the current registration directory (e.g. `/rich4/` or `/`).
- * 2. Pre-caches ONLY the lightweight App Shell (`./` and `./manifest.webmanifest`).
+ * 2. Pre-caches the complete minimal runnable App Shell (`./`, `./index.html`,
+ *    `./manifest.webmanifest`, plus the build's JS and CSS bundles injected at build time).
  *    NEVER silently pre-caches the 1.64 GB full map/audio asset corpus.
- * 3. Serves fingerprinted build bundles (`assets/index-*.js`, `assets/index-*.css`, fonts)
+ * 3. Serves fingerprinted build bundles (`assets/*.js`, `assets/*.css`, `assets/*.woff2`)
  *    with Cache-First, while HTML navigations use Network-First with App Shell fallback.
- * 4. Checks explicit opt-in offline map caches (`rich4-offline-map-v1-*`) when matching
+ * 4. Checks explicit opt-in offline map caches (`rich4-offline-map-*`) when matching
  *    game asset requests (`assets/maps/*`, `assets/ground/*`, `assets/hd/*`, `assets/orig/*`).
- * 5. Supports emergency kill-switch (`SKIP_WAITING` / `UNREGISTER_AND_PURGE` message).
+ * 5. Supports emergency kill-switch (`SKIP_WAITING` / `PURGE_ALL_CACHES` message).
  */
 
-const SHELL_CACHE_VERSION = 'v1';
+const SHELL_CACHE_VERSION = /* __RICH4_SW_VERSION__ */ 'v1';
 const SHELL_CACHE_NAME = `rich4-app-shell-${SHELL_CACHE_VERSION}`;
-const OFFLINE_MAP_PREFIX = 'rich4-offline-map-v1-';
+const OFFLINE_MAP_PREFIX = 'rich4-offline-map-';
 
-const SHELL_URLS = ['./', './manifest.webmanifest'];
+const SHELL_URLS = /* __RICH4_SW_PRECACHE__ */ [
+  './',
+  './index.html',
+  './manifest.webmanifest',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -57,7 +62,7 @@ self.addEventListener('message', (event) => {
         .then((keys) =>
           Promise.all(
             keys
-              .filter((k) => k.startsWith('rich4-'))
+              .filter((k) => k.startsWith('rich4-') || k.startsWith(OFFLINE_MAP_PREFIX))
               .map((k) => caches.delete(k)),
           ),
         ),
@@ -83,18 +88,27 @@ self.addEventListener('fetch', (event) => {
           return res;
         })
         .catch(() =>
-          caches.match(req).then((r) => r || caches.match('./')),
+          caches
+            .match(req)
+            .then((r) => r || caches.match('./index.html') || caches.match('./')),
         ),
     );
     return;
   }
 
-  // Opt-in offline map assets: check `rich4-offline-map-v1-*` caches first, then network.
-  if (url.pathname.includes('/assets/')) {
+  // Build bundles (JS/CSS/Fonts) and opt-in offline map assets: Cache-first, then network.
+  if (url.pathname.includes('/assets/') || url.pathname.endsWith('manifest.webmanifest')) {
+    const isCodeOrFontBundle = /\.(?:js|css|woff2?)$/i.test(url.pathname);
     event.respondWith(
       caches.match(req).then((cached) => {
         if (cached) return cached;
-        return fetch(req);
+        return fetch(req).then((res) => {
+          if (res.ok && isCodeOrFontBundle) {
+            const copy = res.clone();
+            caches.open(SHELL_CACHE_NAME).then((c) => c.put(req, copy)).catch(() => undefined);
+          }
+          return res;
+        });
       }),
     );
   }

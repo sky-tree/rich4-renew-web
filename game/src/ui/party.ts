@@ -121,13 +121,13 @@ export function openParty(d: PartyDeps): void {
       if (fill && fill <= r.members.length) fill = fill === 4 ? 0 : fill; // 補滿4人 with four players already: players only
       const seats = [...r.members.map(m => ({ m, cpu: false })), ...(fill ? Array.from({ length: Math.max(0, fill - r.members.length) }, () => ({ m: null, cpu: true })) : [])];
       dyn.innerHTML = `
-        <div class="pt-code"><small>房間碼</small><b>${r.code}</b>${r.shared ? '<em>已公開在「尋找夥伴」</em>' : '<em>把房間碼告訴朋友</em>'}</div>
+        <div class="pt-code"><small>房間碼</small><b>${esc(r.code)}</b>${r.shared ? '<em>已公開在「尋找夥伴」</em>' : '<em>把房間碼告訴朋友</em>'}</div>
         <div class="pt-seats${seats.length > 4 ? " many" : ""}">${seats.map((x, i) => {
           if (!x.m) return '<div class="pt-seat cpu"><span>電腦</span></div>';
           const me = x.m.id === r.myId, votes = r.votes.get(x.m.id), voted = votes?.has(r.myId);
-          return `<div class="pt-seat${me ? ' me' : ''}" ${me ? 'data-a="char"' : ''}><img src="${face(x.m.character)}" alt=""><b>${esc(x.m.name)}</b>
-            <small>${x.m.nick ? `${esc(CHARACTERS[x.m.character].name)}・` : ''}${me ? '你・點我換角色' : i === 0 ? '房主' : '玩家'}${x.m.region ? `・${esc(x.m.region)}` : ''}</small>
-            ${me ? '' : `<button class="chip pt-kick${voted ? ' on' : ''}" data-kick="${x.m.id}"${voted ? ' disabled' : ''}>請出 ${votes?.size ?? 0}/2</button>`}</div>`;
+          return `<div class="pt-seat${me ? ' me' : ''}" ${me ? 'data-a="char"' : ''}><img src="${esc(face(x.m.character))}" alt=""><b>${esc(x.m.name)}</b>
+            <small>${x.m.nick ? `${esc(CHARACTERS[x.m.character]?.name ?? '')}・` : ''}${me ? '你・點我換角色' : i === 0 ? '房主' : '玩家'}${x.m.region ? `・${esc(x.m.region)}` : ''}</small>
+            ${me ? '' : `<button class="chip pt-kick${voted ? ' on' : ''}" data-kick="${esc(x.m.id)}"${voted ? ' disabled' : ''}>請出 ${votes?.size ?? 0}/2</button>`}</div>`;
         }).join('')}</div>
         <div class="pt-row"><b>地圖</b><span class="pt-map">${esc(mapName(r.map))}</span></div>
         ${host ? `<div class="pt-row"><b>空位</b><div class="chips">${r.members.length < 4 ? `<button class="chip${fill === 4 ? ' on' : ''}" data-fill="4">電腦補滿4人</button>` : ''}<button class="chip${fill === 8 ? ' on' : ''}" data-fill="8">電腦補滿8人</button><button class="chip${fill ? '' : ' on'}" data-fill="0">只有玩家</button></div></div>` : ''}
@@ -164,8 +164,8 @@ export function openParty(d: PartyDeps): void {
   }
 
   function join(code = '') {
-    show('進入房間', `<p class="pt-lead">輸入朋友的 4 位數房間碼</p>
-      <input class="pt-input" inputmode="numeric" maxlength="4" pattern="[0-9]*" value="${esc(code)}" placeholder="0000">
+    show('進入房間', `<p class="pt-lead">輸入朋友的 6 碼房間邀請碼</p>
+      <input class="pt-input" maxlength="8" autocapitalize="characters" autocomplete="off" spellcheck="false" value="${esc(code)}" placeholder="A2B3C4">
       <div class="choices"><button class="candy ghost" data-a="home">返回</button><button class="candy yes" data-a="enter">進入</button></div>`);
     const input = box.querySelector<HTMLInputElement>('.pt-input')!;
     input.focus();
@@ -173,8 +173,8 @@ export function openParty(d: PartyDeps): void {
       const a = (e.target as HTMLElement).closest<HTMLElement>('[data-a]')?.dataset.a;
       if (a === 'home') { audio.ui('no'); home(); box.onclick = menu; return; }
       if (a === 'enter') {
-        const c = input.value.trim();
-        if (!/^\d{4}$/.test(c)) { audio.ui('error'); input.focus(); return; }
+        const c = input.value.trim().toUpperCase();
+        if (!/^[A-Z0-9]{4,8}$/.test(c)) { audio.ui('error'); input.focus(); return; }
         await enter(c);
       }
     };
@@ -192,8 +192,8 @@ export function openParty(d: PartyDeps): void {
     show('尋找夥伴', '<p class="pt-lead">正在找想一起玩的人…</p>');
     lobby = new Lobby();
     const render = (rooms: RoomInfo[]) => show('尋找夥伴', `
-      ${rooms.length ? `<div class="pt-rooms">${rooms.map(x => `<button class="pt-room" data-code="${x.code}"${x.players >= x.max ? ' disabled' : ''}>
-        <img src="${face(x.character)}" alt=""><span><b>${esc(x.host)} 的房間</b><small>${x.region ? `${esc(x.region)}・` : ''}${esc(x.map)}・${x.players}/${x.max} 人</small></span><em>${x.players >= x.max ? '已滿' : '加入'}</em></button>`).join('')}</div>`
+      ${rooms.length ? `<div class="pt-rooms">${rooms.map(x => `<button class="pt-room" data-code="${esc(x.code)}"${x.players >= x.max ? ' disabled' : ''}>
+        <img src="${esc(face(x.character))}" alt=""><span><b>${esc(x.host)} 的房間</b><small>${x.region ? `${esc(x.region)}・` : ''}${esc(x.map)}・${x.players}/${x.max} 人</small></span><em>${x.players >= x.max ? '已滿' : '加入'}</em></button>`).join('')}</div>`
         : '<p class="pt-lead">目前沒有人在找夥伴<br>可以自己建一個共享房間，等別人加入</p>'}
       <div class="choices"><button class="candy ghost" data-a="home">返回</button><button class="candy opt" data-a="create">建立共享房間</button></div>`);
     lobby.onRooms = rooms => { if (lobby) render(rooms); };

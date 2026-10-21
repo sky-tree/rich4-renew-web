@@ -1,10 +1,10 @@
-// Automated Web build verification, release-manifest generation, and HTTP /rich4/ smoke test (M3-01, M3-03).
+// Automated Web build verification, release-manifest generation, and HTTP /rich4/ smoke test (M3-01, M3-03, P1-1, P1-6).
 import { createHash } from 'node:crypto';
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { createServer } from 'node:http';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { verifyAssetIntegrity } from './audit-assets.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -106,7 +106,7 @@ export function simulateStaticRequest(rawUrl, distDir, publicAssetsDir, basePref
   }
   const ext = extname(filePath);
   const mime = MIME_TYPES[ext] || 'application/octet-stream';
-  const isImmutable = /^assets\/(index-|zh-hans-|huninn-)/.test(rel);
+  const isImmutable = /^assets\/((?:index|core-engine|ui-screens|vendor-peer|zh-hans)-[A-Za-z0-9_-]+\.(?:js|css)|huninn-)/.test(rel);
   const isNoCache = ['index.html', 'release-manifest.json', 'manifest.webmanifest', 'sw.js', 'assets/web-packs.json'].includes(rel);
   const cacheControl = isNoCache
     ? 'no-cache, must-revalidate'
@@ -124,7 +124,8 @@ export function simulateStaticRequest(rawUrl, distDir, publicAssetsDir, basePref
   };
 }
 
-export async function runHttpSmokeTest(distDir, publicAssetsDir, basePrefix = '/rich4/') {
+export async function runHttpSmokeTest(distDir, publicAssetsDir, basePrefix = '/rich4/', options = {}) {
+  const requireAssets = options.requireAssets ?? false;
   const cleanPrefix = basePrefix.replace(/\/$/, '');
   const checks = [];
 
@@ -164,10 +165,14 @@ export async function runHttpSmokeTest(distDir, publicAssetsDir, basePrefix = '/
 
   if (existsSync(join(distDir, 'sw.js'))) {
     const rSw = simulateStaticRequest(`${cleanPrefix}/sw.js`, distDir, publicAssetsDir, basePrefix);
+    const swText = rSw.body.toString('utf8');
     if (rSw.status !== 200 || !rSw.headers['cache-control']?.includes('no-cache')) {
       throw new Error(`Invalid /rich4/sw.js response or Cache-Control`);
     }
-    checks.push(`GET ${cleanPrefix}/sw.js -> 200 (Service Worker App Shell, no-cache)`);
+    if (!swText.includes('./assets/index-') || !swText.includes('.js') || !swText.includes('.css')) {
+      throw new Error(`Service Worker sw.js is missing build-time injected JS/CSS precache list`);
+    }
+    checks.push(`GET ${cleanPrefix}/sw.js -> 200 (Service Worker App Shell + JS/CSS precache, no-cache)`);
   }
 
   const r404 = simulateStaticRequest(`${cleanPrefix}/assets/does-not-exist-9999.png`, distDir, publicAssetsDir, basePrefix);
@@ -176,24 +181,71 @@ export async function runHttpSmokeTest(distDir, publicAssetsDir, basePrefix = '/
   }
   checks.push('GET /rich4/assets/does-not-exist-9999.png -> 404 (strict try_files =404)');
 
-  if (publicAssetsDir && existsSync(join(publicAssetsDir, 'maps/maps.json'))) {
-    const rMaps = simulateStaticRequest(`${cleanPrefix}/assets/maps/maps.json`, distDir, publicAssetsDir, basePrefix);
+  const resolvedAssetsDir = existsSync(join(distDir, 'assets/maps/maps.json'))
+    ? join(distDir, 'assets')
+    : publicAssetsDir;
+  const hasAssets = Boolean(resolvedAssetsDir && existsSync(join(resolvedAssetsDir, 'maps/maps.json')));
+
+  if (requireAssets && !hasAssets) {
+    throw new Error(
+      `Release verification failed: required game assets are missing (checked ${join(distDir, 'assets')} and ${publicAssetsDir || 'none'}). ` +
+      `Mount full assets before running 'npm run verify:web', or pass '--code-only' for CI code-only builds.`,
+    );
+  }
+
+  if (hasAssets) {
+    const requiredManifests = [
+      'maps/maps.json',
+      'maps/remake/index.json',
+      'orig/manifest.json',
+      'hd/manifest-hd.json',
+      'ground/index.json',
+      'web-packs.json',
+    ];
+    for (const rel of requiredManifests) {
+      const rMan = simulateStaticRequest(`${cleanPrefix}/assets/${rel}`, distDir, resolvedAssetsDir, basePrefix);
+      if (rMan.status !== 200) {
+        throw new Error(`Missing required asset manifest: /rich4/assets/${rel} (HTTP ${rMan.status})`);
+      }
+    }
+    const rMaps = simulateStaticRequest(`${cleanPrefix}/assets/maps/maps.json`, distDir, resolvedAssetsDir, basePrefix);
     const mapsData = JSON.parse(rMaps.body.toString('utf8'));
     if (rMaps.status !== 200 || !Array.isArray(mapsData.maps) || mapsData.maps.length === 0) {
       throw new Error('Failed to load /rich4/assets/maps/maps.json');
     }
     checks.push(`GET /rich4/assets/maps/maps.json -> 200 (${mapsData.maps.length} maps verified)`);
+
+    // Verify real content SHA-256 hashes of shell & critical JSON files against web-packs.json (P1-6)
+    const webPacksPath = join(resolvedAssetsDir, 'web-packs.json');
+    if (existsSync(webPacksPath)) {
+      const webPacks = JSON.parse(readFileSync(webPacksPath, 'utf8'));
+      const integrity = verifyAssetIntegrity(resolvedAssetsDir, webPacks);
+      if (!integrity.ok) {
+        throw new Error(
+          `Asset SHA-256 content integrity check failed (${integrity.corrupted.length} corrupted/missing): ${integrity.corrupted.slice(0, 5).join('; ')}`,
+        );
+      }
+      checks.push(`SHA-256 content integrity verified for ${integrity.verifiedCount} critical & shell asset files`);
+    } else if (requireAssets) {
+      throw new Error(`Missing ${webPacksPath}. Run 'npm run audit:assets' first.`);
+    }
   }
 
   return checks;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const distDir = resolve(process.argv[2] ?? join(root, 'dist'));
+  const rawArgs = process.argv.slice(2);
+  const codeOnly = rawArgs.includes('--code-only') || process.env.RICH4_VERIFY_MODE === 'code-only';
+  const positional = rawArgs.filter(a => !a.startsWith('--'));
+  const distDir = resolve(positional[0] ?? join(root, 'dist'));
   const publicAssetsDir = join(root, 'public/assets');
   const manifest = generateReleaseManifest(distDir, '/rich4/');
   console.log(`[verify-web] Generated release-manifest.json for build ${manifest.buildId} (${manifest.files.length} files).`);
-  const checks = await runHttpSmokeTest(distDir, publicAssetsDir, '/rich4/');
+  if (codeOnly) {
+    console.log(`[verify-web] MODE: code-only (asset closure check skipped by explicit flag; NOT valid for production release sign-off).`);
+  }
+  const checks = await runHttpSmokeTest(distDir, publicAssetsDir, '/rich4/', { requireAssets: !codeOnly });
   for (const c of checks) console.log(`  ✓ ${c}`);
-  console.log(`[verify-web] All ${checks.length} smoke checks passed.`);
+  console.log(`[verify-web] All ${checks.length} smoke checks passed (${codeOnly ? 'code-only' : 'strict-release'}).`);
 }

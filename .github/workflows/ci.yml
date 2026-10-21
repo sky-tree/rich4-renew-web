@@ -1,0 +1,42 @@
+name: Rich4 Web CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify-code:
+    name: TypeScript, Vitest & Code-Only Web Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: game
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: game/package-lock.json
+
+      - name: Install dependencies (npm ci)
+        run: npm ci
+
+      - name: Run TypeScript type check
+        run: npx tsc --noEmit
+
+      - name: Run unit & security regression tests (asset-free mode)
+        run: npm test
+
+      - name: Build Web bundle (--base=/rich4/, RICH4_NO_ASSETS=1)
+        env:
+          RICH4_NO_ASSETS: '1'
+        run: npm run build:web
+
+      - name: Verify Web bundle & PWA App Shell (code-only mode)
+        run: npm run verify:web:code

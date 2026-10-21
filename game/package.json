@@ -12,6 +12,7 @@
     "audit:assets": "node scripts/audit-assets.mjs",
     "bundle:web": "node scripts/bundle-assets.mjs --web",
     "verify:web": "node scripts/verify-web.mjs",
+    "verify:web:code": "node scripts/verify-web.mjs --code-only",
     "release:web": "node scripts/release-web.mjs",
     "test": "vitest run",
     "assets": "node scripts/link-assets.mjs"

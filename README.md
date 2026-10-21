@@ -1,40 +1,58 @@
-# 大富翁4 重制版 App（rich4-renew-app）
+# 大富翁4 高清重制版 · 纯 Web 专项版（Rich4 Renew Web）
 
-大富翁4是我童年最喜欢的游戏，现在闲着没事的时候，我还是喜欢拿出来玩上一会。一玩就很容易沉浸进去。
-4代的成功，让我对接下来推出的5代大感失望。
-本来他可以把4代美化一下，游戏机能更新一下，就可以算得上是一个很棒的游戏了。
-但他却偏偏选择发售他们认为很好玩的新的游戏机制。
+本项目为 [`iam567/rich4-renew-app`](https://github.com/iam567/rich4-renew-app) 的**纯 Web 专项 Fork（私人使用，不公开商业分发）**。
+目标是保留原版反汇编还原的 TypeScript 确定性规则引擎、4x 高清重绘画面、「大富豪模式」（五城十二人全国战）与「歌舞伎町」独立玩法，彻底移除移动端/桌面原生打包依赖（Capacitor / Electron），演进为通过浏览器即可直接畅玩的纯 HTML5 Web 游戏。
 
-既然他们不懂得做游戏，那么就由我来做吧。
-高解析度重制版的 App 源码：Vite + TypeScript 遊戲本體，Capacitor 打包成 iOS App。
-規則依原版反組譯還原（見 `docs/rules/`），另有新玩法「大富豪模式」（東京／大阪／札幌／九州／沖繩 12 人全國戰）。
+完整游戏素材（原版提取、高清重绘、地图、地表切片、音效）**不提交进 Git**，通过本地或私人服务器独立挂载。
 
-同时也增加了新地图新玩法——歌舞伎町。在夜生活的世界里，有一套独立的事件系统与建筑风格。
-更多的玩法，等我想到了就慢慢的更新。
+## 目录结构
 
-完整素材（原版提取、高清重繪、地圖、地表、音效）不放進 Git，放在 Releases 的 `rich4-assets.tar`；地圖製作與生圖工具不在這裡。
+- [`game/src/core`](game/src/core)：纯规则引擎（回合状态机、地产、银行、股票、卡片、道具、事件、小游戏、大富豪模式）
+- [`game/src/ui`](game/src/ui)：浏览器视图、Canvas 2D 棋盘渲染、Web Audio 音频、IndexedDB 存档与导入导出、PeerJS/WebRTC 锁步联机
+- [`game/src/assets`](game/src/assets)：Web 资源分包清单、并发重试加载器、CDN 地址解析、按需地图离线包与作用域受限的 App Shell PWA
+- [`game/src/renderer`](game/src/renderer)：等角投影纯函数、`BoardRenderer` 抽象接口、Canvas 2D 与实验性 WebGL 着色器渲染后端
+- [`game/scripts`](game/scripts)：素材真实内容 SHA-256 审计（`audit-assets.mjs`）、Web 分包构建（`bundle-assets.mjs`）、发布校验（`verify-web.mjs`）与不可变版本原子发布/回滚（`release-web.mjs`）
+- [`deploy/nginx-rich4.conf`](deploy/nginx-rich4.conf)：Nginx `/rich4/` 子路径静态部署与缓存策略配置
+- [`docs/rules`](docs/rules)：原版反汇编还原的 22 份详尽游戏规则规范
+- [`docs/plan`](docs/plan/README.md)：Rich4 Renew Web 开发计划、架构设计、里程碑与验收状态台账
 
-## 目錄
-- `game/src/core` 規則引擎（回合、地產、股票、卡片、道具、事件、大富豪模式）
-- `game/src/ui` 畫面與動畫
-- `game/ios` iOS 工程、`game/android` 安卓工程（Capacitor 7）
-- `game/scripts` 素材連結、打包、安裝到 iPhone
-- `docs/rules` 規則文件
-- `docs/plan`：[`Rich4 Web Edition 开发计划与技术路线`](docs/plan/README.md)（本 Fork 的规划；尚未完成纯 Web 改造）
+## 常用开发与验证命令（`game/` 目录下执行）
 
-## 執行
 ```bash
 cd game
-npm install
-# 素材：下載 Releases 裡的 rich4-assets.tar（和 .sha256），檢查後解壓到 game/public
-gh release download assets -p 'rich4-assets.tar*'
+
+# 1. 安装依赖
+npm ci
+
+# 2. 挂载游戏素材（从上游 Releases 下载 rich4-assets.tar 并校验解压至 game/public/）
+gh release download assets -R iam567/rich4-renew-app -p 'rich4-assets.tar*'
 shasum -a 256 -c rich4-assets.tar.sha256
 mkdir -p public && tar -xf rich4-assets.tar -C public
-npm run dev
+
+# 3. 运行单元测试（含联机安全、存档校验、资源加载与全量游戏规则测试）
 npm test
-npm run ios      # 打包並安裝到已連接的 iPhone
-npm run package  # 出安裝包到 game/release/：安卓 APK（可直接安裝）＋ 未簽名 iOS IPA
+
+# 4. 运行 TypeScript 静态类型检查
+npx tsc --noEmit
+
+# 5. 构建 Web 生产包（默认子路径 /rich4/；无素材 CI 可加 RICH4_NO_ASSETS=1）
+npm run build:web
+
+# 6. 严格发布验证（强制校验完整素材闭包与真实内容 SHA-256）
+npm run verify:web
+
+# 7. 无素材仅代码构建验证（供 GitHub Actions CI 使用，不代表生产素材验收）
+npm run verify:web:code
+
+# 8. 启动本地开发服务器（默认 http://127.0.0.1:5173/）
+npm run dev
 ```
 
-## 授權
-GPL-3.0-or-later（規則研究引用 mytbk/rich4，見 `THIRD_PARTY.md`）。Releases 裡的大富翁4 原遊戲資源及其重繪不在此授權範圍，僅供私人使用。
+## 当前工程与验收状态
+
+- **代码实现与本地测试（已完成）**：M0–M6 代码实现、安全加固（联机聊天 DOM XSS 防护、SHA-256 重连令牌承诺防冒用、锁步座位归属强校验、6 位高熵房间码）、真实内容 SHA-256 资源审计、PWA 最小可运行资源预缓存、手动分包优化及 **55 个测试文件 / 521 项单元测试** 已全部在本地通过。
+- **线上部署与跨设备真机验收（待在私人云端 VPS 执行）**：需在挂载合法私人素材的云端 Nginx 服务器（`/rich4/`）完成真实 HTTPS 冒烟、跨网络 WebRTC/TURN 真机联机与多浏览器实机验收后，方可视为完成最终线上生产验收。
+
+## 授权说明
+
+源码遵循 `GPL-3.0-or-later`（规则研究引用 `mytbk/rich4`，详见 [`THIRD_PARTY.md`](THIRD_PARTY.md)）。大富翁4 原游戏提取资源及其重绘素材**不在 GPL 授权范围内**，严禁公开商业分发，仅供个人/私人学习与自用。

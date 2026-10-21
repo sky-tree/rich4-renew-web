@@ -25,7 +25,8 @@ import type { StreetView } from './kb-ambient';
 import { timeout, watch } from './watchdog';
 import { pickAt, visible as shapeVisible, type Piece, type Shape } from './pick-hit';
 import { buildingFrame, computeBasis, screenDir } from '../renderer/scene/projection';
-import { RenderMetricsCollector } from '../renderer/types';
+import { RenderMetricsCollector, type BoardRenderer, type RendererBackend, type SpriteQuadState } from '../renderer/types';
+import { createBoardRenderer, preferredRendererBackend, WebGLBoardRenderer } from '../renderer/webgl/webgl-renderer';
 
 export { screenDir };
 
@@ -76,6 +77,9 @@ export type InputMode = 'locked' | 'free' | 'pick' | 'pick-scroll';
 export class BoardView {
   readonly canvas: HTMLCanvasElement;
   readonly perf = new RenderMetricsCollector();
+  rendererBackend: RendererBackend = 'canvas';
+  private expRenderer: BoardRenderer | null = null;
+  private sceneSprites: SpriteQuadState[] = [];
   private ctx: CanvasRenderingContext2D;
   private actors = new Map<number, Actor>();
   /** Camera in world pixels, view rotation 0..7, zoom = screen px per original px. */
@@ -148,8 +152,27 @@ export class BoardView {
     this.warm();
     let last = performance.now(), acc = 0;
     this.looping = true;
+    const wantedBackend = preferredRendererBackend();
+    if (wantedBackend === 'webgl') {
+      void createBoardRenderer(parent, 'webgl').then(r => {
+        if (!this.alive) { r.dispose(); return; }
+        this.expRenderer = r;
+        this.rendererBackend = r.backend;
+        this.expRenderer.resize(this.W, this.H, this.dpr);
+      });
+    }
     if (typeof window !== 'undefined') {
-      (window as unknown as { __rich4Perf?: () => unknown }).__rich4Perf = () => this.perf.summary();
+      (window as unknown as { __rich4Perf?: () => unknown }).__rich4Perf = () => ({
+        ...this.perf.summary(),
+        backend: this.rendererBackend,
+        ...(this.expRenderer instanceof WebGLBoardRenderer
+          ? {
+              webglTextures: this.expRenderer.textureCount(),
+              webglDrawCalls: this.expRenderer.drawCallCount(),
+              webglContextLost: this.expRenderer.isContextLost(),
+            }
+          : {}),
+      });
     }
     const loop = (t: number) => {
       if (!this.alive) return;
@@ -190,6 +213,7 @@ export class BoardView {
     const changed = this.canvas.width !== pw || this.canvas.height !== ph;
     if (changed) { this.canvas.width = pw; this.canvas.height = ph; }
     this.zoom = Math.max(0.6, Math.min(this.W, this.H) / VIEW) * this.userZoom;
+    this.expRenderer?.resize(this.W, this.H, this.dpr);
     // Sprites for the board are kept at the density it draws at (a phone: half the redrawn pixels each way).
     this.bank.setBoardDensity(this.zoom * this.dpr);
     // Setting a canvas's size clears it, and the frame loop draws only on the next frame: dragging a window's edge
@@ -296,6 +320,8 @@ export class BoardView {
   destroy() {
     this.alive = false;
     this.unstick();
+    this.expRenderer?.dispose();
+    this.expRenderer = null;
     this.street?.destroy();
     this.ground.dispose();
     this.tiled?.dispose();
@@ -1164,6 +1190,20 @@ export class BoardView {
     if (frozen) img = this.bank.frozen(archive, res, f, frame);
     this.ctx.imageSmoothingEnabled = f.scale !== 1;
     this.ctx.drawImage(img, sx - f.ax * s, sy - f.ay * s, f.w * s, f.h * s);
+    if (this.expRenderer) {
+      this.sceneSprites.push({
+        id: `${archive}/${res}/${frame}/${tint ?? ''}/${frozen ? 'f' : ''}`,
+        image: img,
+        screenX: sx,
+        screenY: sy,
+        width: f.w,
+        height: f.h,
+        anchorX: f.ax,
+        anchorY: f.ay,
+        scale: f.scale,
+        layer: 0,
+      });
+    }
   }
 
   /**
@@ -1346,6 +1386,7 @@ export class BoardView {
   private draw() {
     const g = this.game, ctx = this.ctx, b = g.board;
     this.frameNo++;
+    if (this.expRenderer) this.sceneSprites.length = 0;
     this.moveCamera();
 
     // 1. Ground: the whole texture under one affine transform (08 §4.3), kept drawn in chunks (`GroundCache`).
@@ -1585,6 +1626,17 @@ export class BoardView {
       });
     }
     this.overlay?.();
+    if (this.expRenderer) {
+      this.expRenderer.render(
+        {
+          camera: { x: this.cam.x, y: this.cam.y, rot: this.rot, zoom: this.zoom, fy: this.fy },
+          ground: this.art.ground,
+          worldSize: worldSize(b),
+          sprites: this.sceneSprites,
+        },
+        this.alpha,
+      );
+    }
   }
 
   /** What 歌舞伎町's street draws with this frame (docs/rules/21 §8): the projection, the view and the map sprites. */

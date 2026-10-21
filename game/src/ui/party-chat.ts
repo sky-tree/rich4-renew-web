@@ -6,7 +6,7 @@
  */
 import { ASSETS } from './assets';
 import { audio } from './audio';
-import type { ChatLine, Room } from './party-net';
+import { safeCharacterIndex, VALID_STICKER_KEYS, type ChatLine, type Room } from './party-net';
 import './party.css';
 
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -18,15 +18,65 @@ const PHRASES = ['你好！', '快點啦～', '哈哈哈', '謝謝老闆！', '�
  */
 export const STICKERS: [string, string][] = [['good', '讚'], ['laugh', '大笑'], ['cry', '大哭'], ['angry', '生氣'], ['party', '慶祝'], ['rich', '發財'], ['please', '拜託'], ['shock', '嚇到']];
 const PARTY_ART = `${ASSETS}/maps/remake/party`;
-const stickerOf = (t: string) => /^\[s:([a-z]+)\]$/.exec(t)?.[1];
-const stickerSrc = (c: number, key: string) => `${PARTY_ART}/sticker-${c}-${key}.webp`;
-const stickerImg = (c: number, key: string, cls: string) => `<img class="${cls}" src="${stickerSrc(c, key)}" alt="${esc(STICKERS.find(s => s[0] === key)?.[1] ?? '')}">`;
+const stickerOf = (t: string): string | undefined => {
+  const m = /^\[s:([a-z]+)\]$/.exec(t);
+  return m && VALID_STICKER_KEYS.has(m[1]) ? m[1] : undefined;
+};
+export const stickerSrc = (c: number, key: string): string => {
+  const safeChar = safeCharacterIndex(c, 0);
+  const safeKey = VALID_STICKER_KEYS.has(key) ? key : 'good';
+  return `${PARTY_ART}/sticker-${safeChar}-${safeKey}.webp`;
+};
 
-function lineHtml(l: ChatLine, face: (c: number) => string): string {
-  if (l.character < 0) return `<div class="pc-line sys">${esc(l.text)}</div>`;
-  const st = stickerOf(l.text);
-  if (st) return `<div class="pc-line"><img src="${face(l.character)}" alt=""><b>${esc(l.name)}</b>${stickerImg(l.character, st, 'pc-stk')}</div>`;
-  return `<div class="pc-line"><img src="${face(l.character)}" alt=""><b>${esc(l.name)}</b><span>${esc(l.text)}</span></div>`;
+/** Safely constructs a sticker `<img>` node using DOM property assignment instead of HTML string interpolation (P0-1 fix). */
+export function createStickerImg(c: number, key: string, cls: string): HTMLImageElement {
+  const img = document.createElement('img');
+  if (cls) img.className = cls;
+  img.src = stickerSrc(c, key);
+  img.alt = STICKERS.find(s => s[0] === key)?.[1] ?? '';
+  return img;
+}
+
+/** Safely constructs a chat line DOM node without `innerHTML` concatenation of remote fields (P0-1 fix). */
+export function createChatLineElement(l: ChatLine, face: (c: number) => string): HTMLElement {
+  const row = document.createElement('div');
+  if (typeof l.character !== 'number' || l.character < 0) {
+    row.className = 'pc-line sys';
+    row.textContent = String(l.text ?? '');
+    return row;
+  }
+  row.className = 'pc-line';
+  const safeChar = safeCharacterIndex(l.character, 0);
+  const avatar = document.createElement('img');
+  avatar.src = face(safeChar);
+  avatar.alt = '';
+  const nameEl = document.createElement('b');
+  nameEl.textContent = String(l.name ?? '玩家');
+  row.append(avatar, nameEl);
+
+  const st = stickerOf(String(l.text ?? ''));
+  if (st) {
+    row.append(createStickerImg(safeChar, st, 'pc-stk'));
+  } else {
+    const span = document.createElement('span');
+    span.textContent = String(l.text ?? '');
+    row.append(span);
+  }
+  return row;
+}
+
+function renderChatLog(container: HTMLElement, lines: ChatLine[], face: (c: number) => string, emptyText: string): void {
+  container.replaceChildren();
+  if (lines.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'pc-line sys';
+    empty.textContent = emptyText;
+    container.append(empty);
+    return;
+  }
+  for (const l of lines) {
+    container.append(createChatLineElement(l, face));
+  }
 }
 
 /** The chat inside the room screen (party.ts): the last lines, quick phrases, an input. */
@@ -36,7 +86,10 @@ export function inlineChat(room: Room, face: (c: number) => string): { el: HTMLE
   el.innerHTML = `<div class="pc-log"></div><div class="pc-phrases">${PHRASES.slice(0, 4).map(p => `<button class="chip" data-say="${esc(p)}">${esc(p)}</button>`).join('')}</div>
     <form class="pc-form"><input maxlength="40" placeholder="說點什麼…（最多40字）"><button class="candy opt">送出</button></form>`;
   const log = el.querySelector<HTMLElement>('.pc-log')!;
-  const draw = () => { log.innerHTML = room.chat.filter(l => !room.muted.has(l.from)).slice(-4).map(l => lineHtml(l, face)).join('') || '<div class="pc-line sys">在這裡和大家打招呼</div>'; };
+  const draw = () => {
+    const visible = room.chat.filter(l => !room.muted.has(l.from)).slice(-4);
+    renderChatLog(log, visible, face, '在這裡和大家打招呼');
+  };
   draw();
   el.addEventListener('click', e => { const b = (e.target as HTMLElement).closest<HTMLElement>('[data-say]'); if (b) { e.stopPropagation(); audio.ui('click'); room.say(b.dataset.say!); } });
   el.querySelector('form')!.addEventListener('submit', e => { e.preventDefault(); const i = el.querySelector('input')!; room.say(i.value); i.value = ''; });
@@ -107,9 +160,15 @@ export class PartyBar {
     this.refresh();
     if (this.room.muted.has(l.from) || (this.panel && this.view === 'chat')) return;
     const pop = document.createElement('div');
-    const st = stickerOf(l.text), big = !!st;
+    const st = stickerOf(String(l.text ?? '')), big = !!st;
     pop.className = `pc-pop${big ? ' big' : ''}`;
-    pop.innerHTML = st ? `<b>${esc(l.name)}</b>${stickerImg(l.character, st, 'pc-stk-big')}` : lineHtml(l, this.face);
+    if (st) {
+      const nameEl = document.createElement('b');
+      nameEl.textContent = String(l.name ?? '玩家');
+      pop.append(nameEl, createStickerImg(safeCharacterIndex(l.character, 0), st, 'pc-stk-big'));
+    } else {
+      pop.append(createChatLineElement(l, this.face));
+    }
     this.pops.append(pop);
     while (this.pops.children.length > 3) this.pops.firstElementChild!.remove();
     setTimeout(() => { pop.classList.add('out'); setTimeout(() => pop.remove(), 400); }, big ? 3000 : 5000);
@@ -137,31 +196,43 @@ export class PartyBar {
     const small = v !== 'chat';
     p.className = `pc-panel${small ? ' small' : ''}`;
     const others = r.members.filter(m => m.id !== r.myId);
-    const head = (t: string) => `<div class="pc-head"><b>${t}</b><button class="pc-x" data-a="close">✕</button></div>`;
+    const head = (t: string) => `<div class="pc-head"><b>${esc(t)}</b><button class="pc-x" data-a="close">✕</button></div>`;
     if (v === 'quick') p.innerHTML = `${head('快捷語')}<div class="pc-phrases big">${PHRASES.map(t => `<button class="chip" data-say="${esc(t)}">${esc(t)}</button>`).join('')}</div>`;
     else if (v === 'emoji') {
-      const mine = r.members.find(m => m.id === r.myId)?.character ?? 0;
-      p.innerHTML = `${head('表情')}<div class="pc-emojis">${STICKERS.map(([k, t]) => `<button data-say="[s:${k}]" title="${t}">${stickerImg(mine, k, '')}</button>`).join('')}</div>`;
+      const mine = safeCharacterIndex(r.members.find(m => m.id === r.myId)?.character ?? 0, 0);
+      p.innerHTML = `${head('表情')}<div class="pc-emojis"></div>`;
+      const emojisBox = p.querySelector<HTMLElement>('.pc-emojis')!;
+      for (const [k, t] of STICKERS) {
+        const btn = document.createElement('button');
+        btn.dataset.say = `[s:${k}]`;
+        btn.title = t;
+        btn.append(createStickerImg(mine, k, ''));
+        emojisBox.append(btn);
+      }
     }
     else if (v === 'chat') {
-      p.innerHTML = `${head('聊天')}<div class="pc-log">${r.chat.filter(l => !r.muted.has(l.from)).slice(-40).map(l => lineHtml(l, this.face)).join('') || '<div class="pc-line sys">還沒有訊息</div>'}</div>
+      p.innerHTML = `${head('聊天')}<div class="pc-log"></div>
         <div class="pc-phrases">${PHRASES.map(t => `<button class="chip" data-say="${esc(t)}">${esc(t)}</button>`).join('')}</div>
         <form class="pc-form"><input maxlength="40" placeholder="說點什麼…（最多40字）"><button class="candy opt">送出</button></form>`;
-      const log = p.querySelector<HTMLElement>('.pc-log')!; log.scrollTop = log.scrollHeight;
+      const log = p.querySelector<HTMLElement>('.pc-log')!;
+      const visible = r.chat.filter(l => !r.muted.has(l.from)).slice(-40);
+      renderChatLog(log, visible, this.face, '還沒有訊息');
+      log.scrollTop = log.scrollHeight;
       p.querySelector('form')!.onsubmit = e => { e.preventDefault(); const i = p.querySelector('input')!; r.say(i.value); i.value = ''; };
     } else if (v === 'people') {
       p.innerHTML = `${head(`玩家（${r.members.filter(m => !m.away).length}/${r.members.length} 在線）`)}<div class="pc-people">${r.members.map(m => {
         const me = m.id === r.myId, votes = r.votes.get(m.id)?.size ?? 0, isHost = m.id === r.members[0]?.id, voted = r.votes.get(m.id)?.has(r.myId);
-        return `<div class="pc-person${m.away ? ' away' : ''}"><img src="${this.face(m.character)}" alt=""><b><i class="pc-dot${m.away ? ' off' : ''}"></i>${esc(m.name)}${me ? '<small>你</small>' : ''}${isHost ? '<small>房主</small>' : ''}${m.region ? `<small>${esc(m.region)}</small>` : ''}${m.away ? '<small>斷線中</small>' : ''}</b>
-          ${me ? '<span></span><span></span>' : `<button class="chip${r.muted.has(m.id) ? ' on' : ''}" data-mute="${m.id}">${r.muted.has(m.id) ? '已靜音' : '靜音'}</button>
-          <button class="chip${voted ? ' on' : ''}" data-kick="${m.id}"${voted ? ' disabled' : ''}>請出 ${votes}/2</button>`}</div>`;
+        const safeChar = safeCharacterIndex(m.character, 0);
+        return `<div class="pc-person${m.away ? ' away' : ''}"><img src="${esc(this.face(safeChar))}" alt=""><b><i class="pc-dot${m.away ? ' off' : ''}"></i>${esc(m.name)}${me ? '<small>你</small>' : ''}${isHost ? '<small>房主</small>' : ''}${m.region ? `<small>${esc(m.region)}</small>` : ''}${m.away ? '<small>斷線中</small>' : ''}</b>
+          ${me ? '<span></span><span></span>' : `<button class="chip${r.muted.has(m.id) ? ' on' : ''}" data-mute="${esc(m.id)}">${r.muted.has(m.id) ? '已靜音' : '靜音'}</button>
+          <button class="chip${voted ? ' on' : ''}" data-kick="${esc(m.id)}"${voted ? ' disabled' : ''}>請出 ${votes}/2</button>`}</div>`;
       }).join('')}</div><p class="pc-note">請出某人（房主也可以）需要另外兩位玩家同意；被請出的人由電腦接手，房主走了由下一位接任</p>`;
     } else {
       const list = [...r.votes.entries()].filter(([, s]) => s.size);
       p.innerHTML = `${head('投票')}${list.length ? `<div class="pc-votes">${list.map(([target, s]) => {
         const voted = s.has(r.myId), mine = target === r.myId;
         return `<div class="pc-vote"><b>請出 ${esc(r.nameOf(target))}</b><span>${s.size}/2 票・${[...s].map(id => esc(r.nameOf(id))).join('、')}</span>
-          ${mine ? '<em>大家在投你</em>' : `<button class="chip${voted ? ' on' : ''}" data-kick="${target}"${voted ? ' disabled' : ''}>${voted ? '已投票' : '我也同意'}</button>`}</div>`;
+          ${mine ? '<em>大家在投你</em>' : `<button class="chip${voted ? ' on' : ''}" data-kick="${esc(target)}"${voted ? ' disabled' : ''}>${voted ? '已投票' : '我也同意'}</button>`}</div>`;
       }).join('')}</div>` : '<p class="pc-note">現在沒有進行中的投票</p>'}<p class="pc-note">要發起請出，請到「玩家」按「請出」</p>`;
       void others;
     }

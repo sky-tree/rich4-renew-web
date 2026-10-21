@@ -6,7 +6,7 @@ import { Game, SPEED } from '../core/game';
 import { nodeById } from '../core/board';
 import { loadGame, saveGame, type SaveData } from '../core/save';
 import type { Answer, GameSettings } from '../core/types';
-import { ASSETS, loadMap, mapList, type MapInfo } from './assets';
+import { ASSETS, loadMap, mapList, mapOfflineUrls, type MapInfo } from './assets';
 import { BoardView } from './board-view';
 import { Hud } from './hud';
 import { GoButton, Toolbar } from './controls';
@@ -50,7 +50,7 @@ import { attachLedger, gameResults, ledgerOf, worldResults } from '../core/stats
 import { pickNextMap, showResults } from './results';
 import { nextSettings, recordResult, type CarriedSettings, type RunRecord } from './next-game';
 import { phrases, shrinkText } from './text';
-import { defaultTelemetry, initAppShellPwa } from '../assets/offline-pwa';
+import { defaultTelemetry, downloadMapOfflinePack, initAppShellPwa, listCachedOfflineMaps, removeMapOfflinePack } from '../assets/offline-pwa';
 
 const app = document.getElementById('app')!;
 // The orientation chosen in the settings is applied at start, before the title screen is laid out.
@@ -317,9 +317,16 @@ function newGame() {
     shrinkText(sheet, '.ng-seat b, .ng-map span, .ng-pick span', 9);
   };
   window.addEventListener('resize', fit);
+  const cachedMaps = new Set<string>();
+  let offlineBusy = false;
+  void listCachedOfflineMaps().then(ids => {
+    for (const id of ids) cachedMaps.add(id);
+    if (app.querySelector('.ng')) render();
+  });
   const render = () => {
     // 大富豪模式 (docs/rules/17): the five cities, your character against the other eleven.
     const ty = state.kind === 'tycoon';
+    const curOffline = cachedMaps.has(String(state.mapId));
     const list = maps.filter(m => m.kind === state.kind && !m.hidden);
     const pages = Math.max(1, Math.ceil(list.length / PER_PAGE));
     page = Math.min(page, pages - 1);
@@ -339,7 +346,8 @@ function newGame() {
       <section class="ng-maps-sec"><div class="ng-head"><h3>地圖</h3><div class="chips">
           <button class="chip${state.kind === 'orig' ? ' on' : ''}" data-maps="orig">原版地圖</button>
           <button class="chip${state.kind === 'custom' ? ' on' : ''}" data-maps="custom">自製地圖 ${maps.filter(m => m.custom && !m.hidden).length}</button>
-          <button class="chip${ty ? ' on' : ''}" data-maps="tycoon">大富豪模式</button></div>
+          <button class="chip${ty ? ' on' : ''}" data-maps="tycoon">大富豪模式</button>
+          ${ty ? '' : `<button class="chip${curOffline ? ' on' : ''}" data-offline-map="${state.mapId}">${offlineBusy ? '快取中…' : curOffline ? '✓ 已離線快取' : '離線快取'}</button>`}</div>
           ${pages > 1 ? `<div class="ng-pager"><button class="chip" data-page="-1">‹</button><span>${page + 1}/${pages}</span><button class="chip" data-page="1">›</button></div>` : ''}</div>
         ${ty ? `<div class="ng-tycoon">${TYCOON_MAPS.map(id => `<figure><img src="${cityThumb(id)}" alt="" style="--cc:${CITY_COLORS[id]}"><figcaption>${CITY_NAMES[id]}</figcaption></figure>`).join('')}
           <p class="ng-tycoon-note">${phrases('你一人對上其他 11 位角色，大家隨機分散在五座城市。\n搭新幹線、飛機往來各地，讓所有對手破產，就能成為「首富大富豪」。')}</p></div>` : `<div class="ng-maps">${shown.map(m => `<button class="ng-map${m.id === state.mapId ? ' on' : ''}" data-map="${m.id}"><img src="${m.thumbnail}" alt=""><span>${m.name}</span></button>`).join('') || '<p class="info-none">沒有可用的地圖</p>'}</div>`}</section>
@@ -385,6 +393,31 @@ function newGame() {
       page = 0;
     }
     if (d.map) state.mapId = Number(d.map);
+    if (d.offlineMap) {
+      if (offlineBusy) return;
+      const mapKey = String(d.offlineMap);
+      if (cachedMaps.has(mapKey)) {
+        offlineBusy = true;
+        render();
+        void removeMapOfflinePack(mapKey).finally(() => {
+          cachedMaps.delete(mapKey);
+          offlineBusy = false;
+          render();
+        });
+      } else {
+        const mapObj = maps.find(m => m.id === Number(mapKey));
+        if (!mapObj) return;
+        offlineBusy = true;
+        render();
+        void downloadMapOfflinePack(mapKey, mapOfflineUrls(mapObj)).then(res => {
+          if (res.cachedCount > 0) cachedMaps.add(mapKey);
+        }).finally(() => {
+          offlineBusy = false;
+          render();
+        });
+      }
+      return;
+    }
     if (d.count) { state.count = Number(d.count); reroll(); }
     if (d.reroll) reroll();
     if (d.pick) {
@@ -859,7 +892,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
   const flow = ty ? ty.flow : game.run();
   let answer: Answer = undefined;
   // 派對模式: the game's questions are numbered; this phone sends its seats' answers, waits for the others'.
-  let askSeq = 0, sendSeq = -1, warnedDesync = false;
+  let askSeq = 0, sendSeq = -1, sendSeat = -1, warnedDesync = false;
   const waiting = document.createElement('div');
   waiting.className = 'pt-waiting'; waiting.hidden = true;
   if (room) {
@@ -944,7 +977,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
   };
   for (;;) {
     if (me !== session) { stopWatch(); room?.close(); return; }
-    if (room && sendSeq >= 0) { room.answer(sendSeq, answer); sendSeq = -1; }
+    if (room && sendSeq >= 0) { room.answer(sendSeq, answer, sendSeat >= 0 ? sendSeat : undefined); sendSeq = -1; sendSeat = -1; }
     const r = flow.next(answer);
     answer = undefined;
     if (r.done) break;
@@ -981,6 +1014,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
       hud.refresh();
       if (room) {
         const seq = askSeq++;
+        room.expectQuestionSeat(seq, s.p);
         if (s.t === 'turn' && !room.digest(seq, digest()) && !warnedDesync) { warnedDesync = true; void hud.flash('和房主的遊戲不同步了\n請把這局截圖給開發者', 2600); }
         if (!room.mine.has(s.p)) {
           // Another phone's player decides: wait for the answer. A seat sent away (voted out) is answered by the
@@ -992,7 +1026,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
           while (!got) {
             if (room.host) {
               if (room.ownerConnected(s.p)) dropped.delete(s.p); else if (!dropped.has(s.p)) dropped.set(s.p, Date.now());
-              if (room.kickedSeats.has(s.p) || Date.now() - (dropped.get(s.p) ?? Infinity) >= 10000) { answer = auto(); sendSeq = seq; break; }
+              if (room.kickedSeats.has(s.p) || Date.now() - (dropped.get(s.p) ?? Infinity) >= 10000) { answer = auto(); sendSeq = seq; sendSeat = s.p; break; }
             }
             waiting.textContent = room.kickedSeats.has(s.p) ? `${nameOf(s.p)} 由電腦接手…` : `等待 ${nameOf(s.p)} 操作…`; waiting.hidden = false;
             // (untilHost only for a guest: it is already settled on the host, and racing it there spun forever)
@@ -1011,6 +1045,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
           if (fromLog) { answer = fromLog.v; continue; }
         }
         sendSeq = seq;
+        sendSeat = s.p;
         if (s.t === 'auto-turn') { answer = (cancelAuto.delete(s.p) ? 1 : 0) as Answer; continue; }
         if (s.t === 'turn' && wantAuto) { wantAuto = false; answer = { action: 'autopilot' } as Answer; continue; }
       }

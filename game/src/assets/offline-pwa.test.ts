@@ -3,6 +3,7 @@ import {
   canFitOfflinePack,
   downloadMapOfflinePack,
   estimateStorageQuota,
+  isRich4ServiceWorkerScope,
   listCachedOfflineMaps,
   offlineMapCacheName,
   purgeStaleOfflineCaches,
@@ -11,6 +12,7 @@ import {
   resolveCdnAssetUrl,
   setAssetCdnBase,
   TelemetryRingBuffer,
+  unregisterAllServiceWorkers,
 } from './offline-pwa';
 
 function createMemoryCacheStorage(): CacheStorage {
@@ -46,7 +48,7 @@ function createMemoryCacheStorage(): CacheStorage {
   };
 }
 
-describe('offline-pwa (M6)', () => {
+describe('offline-pwa (M6, P1-5, P2-1, P2-2)', () => {
   afterEach(() => {
     setAssetCdnBase(null);
     vi.restoreAllMocks();
@@ -117,13 +119,47 @@ describe('offline-pwa (M6)', () => {
     expect(await listCachedOfflineMaps(cachesImpl)).toEqual([]);
   });
 
-  it('purges outdated offline map caches from older versions', async () => {
+  it('purges outdated offline map caches from older versions or stale content hashes (P2-2)', async () => {
     const cachesImpl = createMemoryCacheStorage();
     await cachesImpl.open('rich4-offline-map-v0-tokyo');
-    await cachesImpl.open(offlineMapCacheName('tokyo'));
-    const purged = await purgeStaleOfflineCaches(cachesImpl);
-    expect(purged).toEqual(['rich4-offline-map-v0-tokyo']);
-    expect(await cachesImpl.keys()).toEqual([offlineMapCacheName('tokyo')]);
+    await cachesImpl.open(offlineMapCacheName('tokyo', 'aa11bb22cc33'));
+    await cachesImpl.open(offlineMapCacheName('tokyo', 'dd44ee55ff66'));
+    const purged = await purgeStaleOfflineCaches(cachesImpl, { tokyo: 'dd44ee55ff66' });
+    expect(purged).toEqual([
+      'rich4-offline-map-v0-tokyo',
+      offlineMapCacheName('tokyo', 'aa11bb22cc33'),
+    ]);
+    expect(await cachesImpl.keys()).toEqual([offlineMapCacheName('tokyo', 'dd44ee55ff66')]);
+  });
+
+  it('unregisters ONLY /rich4/ scoped Service Workers without touching sibling apps on the same origin (P1-5)', async () => {
+    expect(isRich4ServiceWorkerScope('https://apps.example.com/rich4/')).toBe(true);
+    expect(isRich4ServiceWorkerScope('https://apps.example.com/other-app/')).toBe(false);
+    expect(isRich4ServiceWorkerScope('https://apps.example.com/')).toBe(false);
+
+    const unregRich4 = vi.fn(async () => true);
+    const unregOther = vi.fn(async () => true);
+    const unregRoot = vi.fn(async () => true);
+    vi.stubGlobal('navigator', {
+      serviceWorker: {
+        getRegistrations: async () => [
+          { scope: 'https://apps.example.com/rich4/', unregister: unregRich4 },
+          { scope: 'https://apps.example.com/other-app/', unregister: unregOther },
+          { scope: 'https://apps.example.com/', unregister: unregRoot },
+        ],
+      },
+    });
+    const cachesImpl = createMemoryCacheStorage();
+    await cachesImpl.open('rich4-app-shell-v1');
+    await cachesImpl.open('other-app-cache-v1');
+    vi.stubGlobal('caches', cachesImpl);
+
+    const count = await unregisterAllServiceWorkers();
+    expect(count).toBe(1);
+    expect(unregRich4).toHaveBeenCalledTimes(1);
+    expect(unregOther).not.toHaveBeenCalled();
+    expect(unregRoot).not.toHaveBeenCalled();
+    expect(await cachesImpl.keys()).toEqual(['other-app-cache-v1']);
   });
 
   it('resolves optional CDN base URL for static assets and falls back to local path', () => {
@@ -134,24 +170,33 @@ describe('offline-pwa (M6)', () => {
     );
   });
 
-  it('redacts sensitive TURN credentials, chat texts, and save payloads in telemetry ring buffer', () => {
+  it('completely redacts TURN URLs with embedded credentials, chat texts, and supports structured metrics (P2-1)', () => {
+    // Regression test for P2-1: turn:user:secret@host must NOT retain 'secret' or 'user'
+    const turnLeak = redactSensitiveText('ICE failed on turn:alice:topSecretPass123@turn.example.com:3478?transport=udp');
+    expect(turnLeak).not.toContain('topSecretPass123');
+    expect(turnLeak).not.toContain('alice');
+    expect(turnLeak).toContain('turn:[REDACTED]');
+
     const buf = new TelemetryRingBuffer(3);
     buf.record(
       'net',
       'ice-error',
-      '{"url":"turn:relay.example.com:3478","credential":"super-secret-password","chat":"hello private"}',
+      '{"url":"turns:user99:mySecretTurnKey@relay.example.com:5349","credential":"super-secret-password","chat":"hello private"}',
     );
     const snap = buf.snapshot();
     expect(snap).toHaveLength(1);
+    expect(snap[0].detail).not.toContain('mySecretTurnKey');
     expect(snap[0].detail).not.toContain('super-secret-password');
     expect(snap[0].detail).not.toContain('hello private');
     expect(snap[0].detail).toContain('[REDACTED]');
 
+    // Structured metric whitelist
+    buf.record('render', 'frame-summary', { fps: 60, longFrames: 0, secretLeak: 'nope' });
+    expect(buf.snapshot()[1].metrics).toEqual({ fps: 60, longFrames: 0 });
+
     // Ring buffer capacity cap
     buf.record('asset', 'e1');
     buf.record('asset', 'e2');
-    buf.record('asset', 'e3');
-    expect(buf.snapshot().map((e) => e.code)).toEqual(['e1', 'e2', 'e3']);
-    expect(redactSensitiveText('password: "abc"')).toContain('[REDACTED]');
+    expect(buf.snapshot().map((e) => e.code)).toEqual(['frame-summary', 'e1', 'e2']);
   });
 });

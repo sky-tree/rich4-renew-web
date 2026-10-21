@@ -28,9 +28,35 @@ function atomicSwitchSymlink(targetRelOrAbs, linkPath) {
   renameSync(tmpLink, linkPath);
 }
 
+const SAFE_RELEASE_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
+
+/**
+ * Validates that `releaseId` is a safe, single-segment identifier without path traversal,
+ * and resolves strictly inside `releasesDir` (P1-2 fix).
+ */
+export function validateReleaseId(releaseId, releasesDir) {
+  if (
+    typeof releaseId !== 'string' ||
+    !SAFE_RELEASE_ID_RE.test(releaseId) ||
+    releaseId.includes('..') ||
+    releaseId === 'history.json'
+  ) {
+    throw new Error(
+      `Invalid releaseId '${String(releaseId)}': must match /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/ and not contain '..'`,
+    );
+  }
+  const resolvedRoot = resolve(releasesDir);
+  const targetDir = resolve(resolvedRoot, releaseId);
+  if (dirname(targetDir) !== resolvedRoot) {
+    throw new Error(`Release target path escaped releases directory: ${targetDir}`);
+  }
+  return targetDir;
+}
+
 /**
  * Deploys a built `distDir` into `<appsRoot>/rich4-releases/<releaseId>` and atomically switches
  * `<appsRoot>/rich4` to point to the new release.
+ * Refuses to overwrite an existing release directory to preserve immutable release guarantees (P1-2 fix).
  */
 export function deployRelease({ appsRoot, distDir, releaseId }) {
   const baseRoot = resolve(appsRoot);
@@ -44,8 +70,12 @@ export function deployRelease({ appsRoot, distDir, releaseId }) {
     : generateReleaseManifest(srcDist, '/rich4/');
 
   const id = releaseId || `${manifest.buildId}-${Date.now()}`;
-  const targetDir = join(releasesDir, id);
-  rmSync(targetDir, { recursive: true, force: true });
+  const targetDir = validateReleaseId(id, releasesDir);
+  if (existsSync(targetDir)) {
+    throw new Error(
+      `Refusing to overwrite existing immutable release '${id}' at ${targetDir}. Use a new releaseId or roll back instead.`,
+    );
+  }
   cpSync(srcDist, targetDir, { recursive: true });
 
   const activeLink = join(baseRoot, 'rich4');
@@ -79,7 +109,7 @@ export function rollbackRelease({ appsRoot, toReleaseId }) {
   if (!targetId) {
     throw new Error('No previous release available to roll back to.');
   }
-  const targetDir = join(releasesDir, targetId);
+  const targetDir = validateReleaseId(targetId, releasesDir);
   const manifestPath = join(targetDir, 'release-manifest.json');
   if (!existsSync(targetDir) || !existsSync(manifestPath)) {
     throw new Error(`Rollback target release '${targetId}' is missing or incomplete at ${targetDir}`);

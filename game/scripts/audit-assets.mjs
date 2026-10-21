@@ -16,13 +16,14 @@ export function auditAssets(assetsDir, opts = {}) {
   }
 
   const missing = [];
-  const seen = new Map(); // relPath -> { packId, category, size }
-  const packs = new Map(); // packId -> { id, category, fileCount, bytes, hash: Hash }
+  const seen = new Map(); // relPath -> { packId, category, size, sha256 }
+  const packs = new Map(); // packId -> { id, category, fileCount, bytes, hash: Hash, files: string[] }
+  const criticalFiles = {}; // relPath -> { size, sha256, packId }
 
   function ensurePack(id, category) {
     let p = packs.get(id);
     if (!p) {
-      p = { id, category, fileCount: 0, bytes: 0, hash: createHash('sha256') };
+      p = { id, category, fileCount: 0, bytes: 0, hash: createHash('sha256'), files: [] };
       packs.set(id, p);
     }
     return p;
@@ -35,12 +36,18 @@ export function auditAssets(assetsDir, opts = {}) {
       missing.push({ rel, packId });
       return;
     }
-    const size = statSync(full).size;
-    seen.set(rel, { packId, category, size });
+    const buf = readFileSync(full);
+    const size = buf.length;
+    const fileSha256 = createHash('sha256').update(buf).digest('hex');
+    seen.set(rel, { packId, category, size, sha256: fileSha256 });
     const p = ensurePack(packId, category);
     p.fileCount++;
     p.bytes += size;
-    p.hash.update(`${rel}:${size}\n`);
+    p.files.push(rel);
+    p.hash.update(`${rel}:${size}:${fileSha256}\n`);
+    if (packId === 'shell' || rel.endsWith('.json')) {
+      criticalFiles[rel] = { size, sha256: fileSha256, packId };
+    }
   }
 
   const readJson = rel => JSON.parse(readFileSync(join(src, rel), 'utf8'));
@@ -233,7 +240,7 @@ export function auditAssets(assetsDir, opts = {}) {
   let totalBytes = 0;
 
   for (const [id, p] of [...packs.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-    const sha256 = p.hash.digest('hex').slice(0, 16);
+    const sha256 = p.hash.digest('hex');
     packsObj[id] = {
       id: p.id,
       category: p.category,
@@ -248,7 +255,8 @@ export function auditAssets(assetsDir, opts = {}) {
   }
 
   const manifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    hashAlgorithm: 'sha256-content-bytes',
     buildId: process.env.RICH4_BUILD_ID || 'local-dev',
     generatedAt: new Date().toISOString(),
     webp: webpDetected,
@@ -256,6 +264,7 @@ export function auditAssets(assetsDir, opts = {}) {
     totalBytes,
     categories,
     packs: packsObj,
+    criticalFiles,
   };
 
   if (opts.writeManifest) {
@@ -263,6 +272,39 @@ export function auditAssets(assetsDir, opts = {}) {
   }
 
   return { skipped: false, missing, manifest };
+}
+
+/**
+ * Verifies on-disk asset byte contents against the SHA-256 hashes recorded in `web-packs.json` (P1-6 fix).
+ * Detects silent file corruption even when file byte size remains unchanged.
+ */
+export function verifyAssetIntegrity(assetsDir, packManifest) {
+  const src = resolve(assetsDir);
+  const entries = Object.entries(packManifest?.criticalFiles ?? {});
+  if (entries.length === 0) {
+    return { ok: false, verifiedCount: 0, corrupted: ['No criticalFiles hashes present in web-packs.json'] };
+  }
+  const corrupted = [];
+  let verifiedCount = 0;
+  for (const [rel, expected] of entries) {
+    const full = join(src, rel);
+    if (!existsSync(full)) {
+      corrupted.push(`${rel}: missing`);
+      continue;
+    }
+    const buf = readFileSync(full);
+    if (buf.length !== expected.size) {
+      corrupted.push(`${rel}: size mismatch (expected ${expected.size}, got ${buf.length})`);
+      continue;
+    }
+    const actualSha256 = createHash('sha256').update(buf).digest('hex');
+    if (actualSha256 !== expected.sha256) {
+      corrupted.push(`${rel}: sha256 mismatch (expected ${expected.sha256}, got ${actualSha256})`);
+      continue;
+    }
+    verifiedCount++;
+  }
+  return { ok: corrupted.length === 0, verifiedCount, corrupted };
 }
 
 // CLI entry point

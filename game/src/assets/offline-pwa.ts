@@ -1,10 +1,28 @@
 /**
  * M6 — App Shell PWA, Opt-in Offline Map Packs, Optional Asset CDN Resolution,
- * and Privacy-Safe Anonymous Telemetry Ring Buffer.
+ * and Privacy-Safe Structured Telemetry Ring Buffer (with P1-4, P1-5, P1-7, P2-1, P2-2 fixes).
  */
 
-export const OFFLINE_MAP_CACHE_VERSION = 'v1';
-export const OFFLINE_MAP_CACHE_PREFIX = `rich4-offline-map-${OFFLINE_MAP_CACHE_VERSION}-`;
+declare const __APP_VERSION__: string | undefined;
+
+const DEFAULT_APP_VER = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.6.6';
+let currentOfflineVersion = `v1-${DEFAULT_APP_VER}`;
+
+/** Returns the active offline cache version bound to the current app build/asset version (P2-2 fix). */
+export function getOfflineCacheVersion(): string {
+  return currentOfflineVersion;
+}
+
+/** Overrides the active offline cache version (e.g. when binding to `web-packs.json` buildId/hash). */
+export function setOfflineCacheVersion(version: string): void {
+  const clean = version.replace(/[^a-zA-Z0-9._-]/g, '_');
+  if (clean) currentOfflineVersion = clean;
+}
+
+export function getOfflineMapCachePrefix(): string {
+  return `rich4-offline-map-${currentOfflineVersion}-`;
+}
+
 export const APP_SHELL_CACHE_PREFIX = 'rich4-app-shell-';
 export const DEFAULT_SAFETY_MARGIN_BYTES = 150 * 1024 * 1024; // Reserve at least 150 MiB free space
 
@@ -24,6 +42,8 @@ export interface OfflinePackProgress {
 }
 
 export interface DownloadOfflinePackOptions {
+  /** Content SHA-256 hash of the pack from `web-packs.json` to bind cache invalidation (P2-2). */
+  contentHash?: string;
   /** Estimated pack byte size for pre-download storage quota validation. */
   estimatedBytes?: number;
   /** Minimum free bytes required after download (default 150 MiB). */
@@ -69,7 +89,6 @@ export async function canFitOfflinePack(
 ): Promise<{ ok: boolean; reason?: string; quota: StorageQuotaEstimate }> {
   const quota = await estimateStorageQuota();
   if (!quota.supported) {
-    // When the browser does not expose quota numbers, allow the attempt and rely on Cache.put error handling.
     return { ok: true, quota };
   }
   const required = Math.max(0, packBytes) + Math.max(0, safetyMarginBytes);
@@ -83,9 +102,10 @@ export async function canFitOfflinePack(
   return { ok: true, quota };
 }
 
-export function offlineMapCacheName(mapKey: string): string {
+export function offlineMapCacheName(mapKey: string, contentHash?: string): string {
   const safeKey = mapKey.replace(/[^a-zA-Z0-9_-]/g, '_');
-  return `${OFFLINE_MAP_CACHE_PREFIX}${safeKey}`;
+  const hashSuffix = contentHash ? `@${contentHash.replace(/[^a-fA-F0-9]/g, '').slice(0, 12)}` : '';
+  return `${getOfflineMapCachePrefix()}${safeKey}${hashSuffix}`;
 }
 
 /**
@@ -110,12 +130,15 @@ export async function downloadMapOfflinePack(
     }
   }
 
-  const uniqueUrls = Array.from(new Set(urls.filter(Boolean)));
-  const cacheName = offlineMapCacheName(mapKey);
+  const uniqueUrls = Array.from(new Set(urls.filter(Boolean))).map(u => resolveCdnAssetUrl(u));
+  const cacheName = offlineMapCacheName(mapKey, options.contentHash);
   const totalFiles = uniqueUrls.length;
   if (totalFiles === 0) {
     return { cacheName, cachedCount: 0 };
   }
+
+  // Remove any older hash variants for the same mapKey before opening the new cache
+  await removeMapOfflinePack(mapKey, cachesApi);
 
   const cache = await cachesApi.open(cacheName);
   let loadedFiles = 0;
@@ -147,14 +170,13 @@ export async function downloadMapOfflinePack(
     await Promise.all(Array.from({ length: concurrency }, () => worker()));
     return { cacheName, cachedCount: loadedFiles };
   } catch (err) {
-    // Roll back partial cache so broken packs never linger
     await cachesApi.delete(cacheName).catch(() => undefined);
     throw err;
   }
 }
 
 /**
- * Deletes a previously cached map offline pack (M6-02).
+ * Deletes a previously cached map offline pack (including any hash suffix variants) (M6-02).
  */
 export async function removeMapOfflinePack(
   mapKey: string,
@@ -162,7 +184,16 @@ export async function removeMapOfflinePack(
 ): Promise<boolean> {
   const cachesApi = cachesImpl ?? (typeof caches !== 'undefined' ? caches : undefined);
   if (!cachesApi) return false;
-  return cachesApi.delete(offlineMapCacheName(mapKey));
+  const safeKey = mapKey.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const prefix = `${getOfflineMapCachePrefix()}${safeKey}`;
+  const keys = await cachesApi.keys();
+  let removed = false;
+  for (const k of keys) {
+    if (k === prefix || k.startsWith(`${prefix}@`)) {
+      if (await cachesApi.delete(k)) removed = true;
+    }
+  }
+  return removed;
 }
 
 /**
@@ -171,24 +202,63 @@ export async function removeMapOfflinePack(
 export async function listCachedOfflineMaps(cachesImpl?: CacheStorage): Promise<string[]> {
   const cachesApi = cachesImpl ?? (typeof caches !== 'undefined' ? caches : undefined);
   if (!cachesApi) return [];
+  const prefix = getOfflineMapCachePrefix();
   const keys = await cachesApi.keys();
-  return keys
-    .filter((k) => k.startsWith(OFFLINE_MAP_CACHE_PREFIX))
-    .map((k) => k.slice(OFFLINE_MAP_CACHE_PREFIX.length));
+  const out = new Set<string>();
+  for (const k of keys) {
+    if (k.startsWith(prefix)) {
+      const rest = k.slice(prefix.length);
+      const mapKey = rest.split('@')[0];
+      if (mapKey) out.add(mapKey);
+    }
+  }
+  return Array.from(out);
 }
 
 /**
- * Purges outdated `rich4-offline-map-*` caches whose version prefix no longer matches `OFFLINE_MAP_CACHE_PREFIX`.
+ * Purges outdated `rich4-offline-map-*` caches whose version prefix or content hash no longer matches (P2-2 fix).
  */
-export async function purgeStaleOfflineCaches(cachesImpl?: CacheStorage): Promise<string[]> {
+export async function purgeStaleOfflineCaches(
+  cachesImpl?: CacheStorage,
+  expectedPackHashes?: Record<string, string>,
+): Promise<string[]> {
   const cachesApi = cachesImpl ?? (typeof caches !== 'undefined' ? caches : undefined);
   if (!cachesApi) return [];
+  const activePrefix = getOfflineMapCachePrefix();
   const keys = await cachesApi.keys();
-  const stale = keys.filter(
-    (k) => k.startsWith('rich4-offline-map-') && !k.startsWith(OFFLINE_MAP_CACHE_PREFIX),
-  );
-  await Promise.all(stale.map((k) => cachesApi.delete(k)));
+  const stale = keys.filter(k => {
+    if (!k.startsWith('rich4-offline-map-')) return false;
+    if (!k.startsWith(activePrefix)) return true;
+    if (expectedPackHashes) {
+      const rest = k.slice(activePrefix.length);
+      const [mapKey, hashPart] = rest.split('@');
+      const expected = expectedPackHashes[mapKey];
+      if (expected && hashPart && hashPart !== expected.slice(0, 12)) {
+        return true;
+      }
+    }
+    return false;
+  });
+  await Promise.all(stale.map(k => cachesApi.delete(k)));
   return stale;
+}
+
+/**
+ * Checks whether a Service Worker registration `scope` belongs strictly to this Rich4 application
+ * (e.g. `/rich4/`), preventing accidental unregistration of other apps on the same origin (P1-5 fix).
+ */
+export function isRich4ServiceWorkerScope(scopeUrl: string, expectedSubpath = '/rich4/'): boolean {
+  try {
+    const parsed = new URL(scopeUrl, 'https://localhost');
+    const cleanExpected = expectedSubpath.startsWith('/') ? expectedSubpath : `/${expectedSubpath}`;
+    const normExpected = cleanExpected.endsWith('/') ? cleanExpected : `${cleanExpected}/`;
+    if (parsed.pathname === normExpected || parsed.pathname.startsWith(normExpected)) {
+      return true;
+    }
+  } catch {
+    /* ignore invalid URL */
+  }
+  return false;
 }
 
 /**
@@ -210,15 +280,21 @@ export function isServiceWorkerDisabled(): boolean {
 }
 
 /**
- * Emergency kill-switch: unregisters all Service Workers under the current scope and purges `rich4-*` caches.
+ * Scoped emergency kill-switch: unregisters ONLY Service Workers belonging to the `/rich4/` scope
+ * and purges `rich4-*` caches, leaving other same-origin apps untouched (P1-5 fix).
  */
-export async function unregisterAllServiceWorkers(cachesImpl?: CacheStorage): Promise<number> {
+export async function unregisterAllServiceWorkers(
+  cachesImpl?: CacheStorage,
+  expectedSubpath = '/rich4/',
+): Promise<number> {
   let count = 0;
   try {
     if (typeof navigator !== 'undefined' && navigator.serviceWorker?.getRegistrations) {
       const regs = await navigator.serviceWorker.getRegistrations();
       for (const r of regs) {
-        if (await r.unregister()) count++;
+        if (isRich4ServiceWorkerScope(r.scope, expectedSubpath)) {
+          if (await r.unregister()) count++;
+        }
       }
     }
   } catch {
@@ -229,7 +305,7 @@ export async function unregisterAllServiceWorkers(cachesImpl?: CacheStorage): Pr
     if (cachesApi) {
       const keys = await cachesApi.keys();
       await Promise.all(
-        keys.filter((k) => k.startsWith('rich4-')).map((k) => cachesApi.delete(k)),
+        keys.filter(k => k.startsWith('rich4-')).map(k => cachesApi.delete(k)),
       );
     }
   } catch {
@@ -240,7 +316,7 @@ export async function unregisterAllServiceWorkers(cachesImpl?: CacheStorage): Pr
 
 /**
  * Registers the lightweight App Shell Service Worker (`./sw.js`) in production builds,
- * or unregisters everything if the kill-switch is set (M6-01).
+ * or unregisters scoped `/rich4/` workers if the kill-switch is set (M6-01).
  */
 export async function initAppShellPwa(): Promise<void> {
   if (isServiceWorkerDisabled()) {
@@ -265,7 +341,7 @@ export async function initAppShellPwa(): Promise<void> {
 }
 
 /**
- * Optional CDN / Object Storage base URL resolver for static game assets (M6-03).
+ * Optional CDN / Object Storage base URL resolver for static game assets (M6-03 & P1-7 fix).
  * Falls back to the default local/same-origin path when no CDN is configured.
  */
 let runtimeAssetCdnBase: string | null = null;
@@ -275,53 +351,88 @@ export function setAssetCdnBase(cdnBase: string | null): void {
 }
 
 export function resolveCdnAssetUrl(assetPath: string): string {
+  if (!assetPath || /^(?:data:|blob:|https?:\/\/)/i.test(assetPath)) {
+    return assetPath;
+  }
   const winCdn = (globalThis as { __RICH4_ASSET_CDN__?: string }).__RICH4_ASSET_CDN__;
   const envCdn = (import.meta.env as Record<string, string | undefined> | undefined)?.VITE_RICH4_ASSET_CDN;
   const base = runtimeAssetCdnBase ?? (winCdn ? winCdn.replace(/\/+$/, '') : envCdn ? envCdn.replace(/\/+$/, '') : '');
   if (!base) return assetPath;
-  const clean = assetPath.replace(/^(\.\/|\/)+/, '');
+  // Normalize `/rich4/assets/...` or `./assets/...` to `assets/...` when rewriting to an external CDN root
+  const idx = assetPath.indexOf('assets/');
+  const clean = idx >= 0 ? assetPath.slice(idx) : assetPath.replace(/^(\.\/|\/)+/, '');
   return `${base}/${clean}`;
 }
 
 /**
- * Privacy-safe, anonymous local diagnostic & telemetry ring buffer (M6-04).
- * Strips credentials, TURN passwords, room chat texts, and save payloads before recording.
+ * Privacy-safe, structured local diagnostic & telemetry ring buffer (M6-04 & P2-1 fix).
+ * Strips credentials, TURN URLs, userinfo, room chat texts, and save payloads before recording.
  */
 export interface DiagnosticEvent {
   ts: number;
   category: 'asset' | 'render' | 'net' | 'storage' | 'error';
   code: string;
+  metrics?: Record<string, number | boolean | string>;
   detail?: string;
 }
 
-const SENSITIVE_PATTERNS: RegExp[] = [
-  /("?(?:credential|password|token|secret)"?\s*:\s*)"[^"]*"/gi,
-  /(turn:[^\s"']+)/gi,
-  /("?(?:chat|text|saveData|world|players)"?\s*:\s*)(\{[\s\S]*?\}|\[[\s\S]*?\]|"[^"]*")/gi,
-];
-
 export function redactSensitiveText(input: string, maxLength = 240): string {
-  let out = input;
-  for (const re of SENSITIVE_PATTERNS) {
-    out = out.replace(re, '$1"[REDACTED]"');
-  }
+  let out = String(input ?? '');
+  // 1. Redact any TURN/TURNS URI completely without preserving `$1` (fixes P2-1 leak)
+  out = out.replace(/turns?:[^\s"',}\]]+/gi, 'turn:[REDACTED]');
+  // 2. Redact any URI with embedded `user:pass@`
+  out = out.replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/:@]+:[^\s/@]+@/gi, '$1[REDACTED]@');
+  // 3. Redact sensitive JSON / key-value fields (credentials, tokens, chat, saves)
+  out = out.replace(
+    /("?(?:credential|password|username|token|reconnectToken|tokenCommit|secret|chat|text|saveData|world|players)"?\s*[:=]\s*)(\{[\s\S]*?\}|\[[\s\S]*?\]|"[^"]*"|'[^']*'|[^\s,}\]]+)/gi,
+    '$1"[REDACTED]"',
+  );
   if (out.length > maxLength) {
     out = `${out.slice(0, maxLength)}…`;
   }
   return out;
 }
 
+const ALLOWED_METRIC_KEYS = new Set([
+  'status',
+  'durationMs',
+  'attempt',
+  'packId',
+  'mapId',
+  'fps',
+  'fps1Low',
+  'longFrames',
+  'reason',
+  'backend',
+]);
+
 export class TelemetryRingBuffer {
   private readonly buffer: DiagnosticEvent[] = [];
   constructor(private readonly capacity = 50) {}
 
-  record(category: DiagnosticEvent['category'], code: string, rawDetail?: string): void {
+  record(
+    category: DiagnosticEvent['category'],
+    code: string,
+    rawDetailOrMetrics?: string | Record<string, number | boolean | string>,
+  ): void {
+    const safeCode = code.replace(/[^a-zA-Z0-9_.:-]/g, '_').slice(0, 64);
     const entry: DiagnosticEvent = {
       ts: Date.now(),
       category,
-      code,
-      ...(rawDetail ? { detail: redactSensitiveText(rawDetail) } : {}),
+      code: safeCode,
     };
+    if (typeof rawDetailOrMetrics === 'string' && rawDetailOrMetrics) {
+      entry.detail = redactSensitiveText(rawDetailOrMetrics);
+    } else if (rawDetailOrMetrics && typeof rawDetailOrMetrics === 'object') {
+      const cleanMetrics: Record<string, number | boolean | string> = {};
+      for (const [k, v] of Object.entries(rawDetailOrMetrics)) {
+        if (!ALLOWED_METRIC_KEYS.has(k)) continue;
+        if (typeof v === 'number' && Number.isFinite(v)) cleanMetrics[k] = v;
+        else if (typeof v === 'boolean') cleanMetrics[k] = v;
+        else if (typeof v === 'string') cleanMetrics[k] = redactSensitiveText(v, 80);
+      }
+      entry.metrics = cleanMetrics;
+    }
     if (this.buffer.length >= this.capacity) {
       this.buffer.shift();
     }

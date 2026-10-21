@@ -68,13 +68,43 @@ describe('WebGLBoardRenderer lifecycle, LRU texture eviction, context loss & fal
       TEXTURE_2D: 5,
       RGBA: 6,
       UNSIGNED_BYTE: 7,
+      VERTEX_SHADER: 0x8b31,
+      FRAGMENT_SHADER: 0x8b30,
+      COMPILE_STATUS: 0x8b81,
+      ARRAY_BUFFER: 0x8892,
+      DYNAMIC_DRAW: 0x88e8,
+      FLOAT: 0x1406,
+      TRIANGLES: 0x0004,
       clearColor: vi.fn(),
       enable: vi.fn(),
       blendFunc: vi.fn(),
       viewport: vi.fn(),
       clear: vi.fn(),
+      createShader: vi.fn(() => ({})),
+      shaderSource: vi.fn(),
+      compileShader: vi.fn(),
+      getShaderParameter: vi.fn(() => true),
+      deleteShader: vi.fn(),
+      createProgram: vi.fn(() => ({})),
+      attachShader: vi.fn(),
+      linkProgram: vi.fn(),
+      useProgram: vi.fn(),
+      deleteProgram: vi.fn(),
+      getAttribLocation: vi.fn((_, name: string) => (name === 'a_pos' ? 0 : 1)),
+      getUniformLocation: vi.fn(() => ({})),
+      uniform2f: vi.fn(),
+      uniform1i: vi.fn(),
+      uniform1f: vi.fn(),
+      createBuffer: vi.fn(() => ({})),
+      bindBuffer: vi.fn(),
+      bufferData: vi.fn(),
+      deleteBuffer: vi.fn(),
+      enableVertexAttribArray: vi.fn(),
+      vertexAttribPointer: vi.fn(),
+      drawArrays: vi.fn(),
       createTexture: vi.fn(() => ({ id: Math.random() })),
       bindTexture: vi.fn(),
+      texParameteri: vi.fn(),
       texImage2D: vi.fn(),
       deleteTexture: vi.fn((t: unknown) => deleted.push(t)),
     };
@@ -119,6 +149,9 @@ describe('WebGLBoardRenderer lifecycle, LRU texture eviction, context loss & fal
 
     renderer.render(scene, 0);
     expect(renderer.textureCount()).toBe(16);
+    expect(renderer.drawCallCount()).toBe(21); // 1 isometric ground quad + 20 depth-sorted sprite quads
+    expect(mockGL.useProgram).toHaveBeenCalled();
+    expect(mockGL.drawArrays).toHaveBeenCalledTimes(21);
     expect(deleted.length).toBeGreaterThan(0);
 
     // Simulate webglcontextlost
