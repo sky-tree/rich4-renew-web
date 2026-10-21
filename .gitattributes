@@ -1,0 +1,2 @@
+# Shell helpers run on the Linux VPS: keep LF even on Windows checkouts (core.autocrlf).
+*.sh text eol=lf

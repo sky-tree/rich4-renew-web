@@ -14,6 +14,7 @@
     "verify:web": "node scripts/verify-web.mjs",
     "verify:web:code": "node scripts/verify-web.mjs --code-only",
     "release:web": "node scripts/release-web.mjs",
+    "rollback:web": "node scripts/release-web.mjs rollback",
     "test": "vitest run",
     "assets": "node scripts/link-assets.mjs"
   },

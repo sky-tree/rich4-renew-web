@@ -35,7 +35,7 @@ case "$cmd" in
   status)
     echo "Active symlink : $(readlink -f "$RUNTIME_DIR/rich4" 2>/dev/null || echo none)"
     if [[ -f "$RUNTIME_DIR/rich4/release-manifest.json" ]]; then
-      grep -E '"buildId"|"gitSha"|"builtAt"' "$RUNTIME_DIR/rich4/release-manifest.json" || true
+      grep -E '"buildId"|"gitSha"|"generatedAt"' "$RUNTIME_DIR/rich4/release-manifest.json" || true
     fi
     if [[ -f "$RUNTIME_DIR/rich4-releases/history.json" ]]; then
       echo "Release history:"
@@ -74,13 +74,24 @@ case "$cmd" in
     ;;
 
   rollback)
+    # Issue #1: delegates to `release-web.mjs rollback` (the only rollback implementation; there is no `rollback:web` script).
+    # Without an id it returns to the previous release recorded in rich4-releases/history.json.
     target_id="${1:-}"
-    cd "$GAME_DIR"
-    if [[ -n "$target_id" ]]; then
-      npm run rollback:web -- --root "$RUNTIME_DIR" --to "$target_id"
-    else
-      npm run rollback:web -- --root "$RUNTIME_DIR"
+    if [[ -n "$target_id" && ! "$target_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]]; then
+      echo "[rollback] Invalid release id '$target_id' (allowed: [A-Za-z0-9][A-Za-z0-9._-]{0,63})." >&2
+      exit 2
     fi
+    if [[ ! -d "$RUNTIME_DIR/rich4-releases" ]]; then
+      echo "[rollback] No releases directory at $RUNTIME_DIR/rich4-releases." >&2
+      exit 1
+    fi
+    cd "$GAME_DIR"
+    rollback_args=(rollback --root "$RUNTIME_DIR")
+    if [[ -n "$target_id" ]]; then
+      rollback_args+=(--to "$target_id")
+    fi
+    node scripts/release-web.mjs "${rollback_args[@]}"
+    echo "Active symlink : $(readlink -f "$RUNTIME_DIR/rich4" 2>/dev/null || echo none)"
     ;;
 
   set-auth)

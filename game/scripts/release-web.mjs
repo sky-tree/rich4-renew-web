@@ -163,16 +163,22 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     else if ((args[i] === '--id' || args[i] === '--to') && args[i + 1]) id = args[++i];
   }
 
-  if (action === 'deploy') {
-    const r = deployRelease({ appsRoot, distDir, releaseId: id || undefined, codeOnly });
-    console.log(
-      `[release-web] Verified (${r.postChecks.length} checks) and deployed '${r.id}' (previous: ${r.previous ?? 'none'}) -> ${readlinkSync(r.activeLink)}`,
-    );
-  } else if (action === 'rollback') {
-    const r = rollbackRelease({ appsRoot, toReleaseId: id || undefined });
-    console.log(`[release-web] Rolled back from '${r.rolledFrom}' to '${r.current}' -> ${readlinkSync(r.activeLink)}`);
-  } else {
-    console.error(`Unknown action '${action}'. Use 'deploy' or 'rollback'.`);
+  try {
+    if (action === 'deploy') {
+      const r = deployRelease({ appsRoot, distDir, releaseId: id || undefined, codeOnly });
+      console.log(
+        `[release-web] Verified (${r.postChecks.length} checks) and deployed '${r.id}' (previous: ${r.previous ?? 'none'}) -> ${readlinkSync(r.activeLink)}`,
+      );
+    } else if (action === 'rollback') {
+      const r = rollbackRelease({ appsRoot, toReleaseId: id || undefined });
+      console.log(`[release-web] Rolled back from '${r.rolledFrom}' to '${r.current}' -> ${readlinkSync(r.activeLink)}`);
+    } else {
+      console.error(`Unknown action '${action}'. Use 'deploy' or 'rollback'.`);
+      process.exit(2);
+    }
+  } catch (err) {
+    // A clear message and a non-zero exit code for rich4-ctl.sh (Issue #1); the active symlink is left untouched.
+    console.error(`[release-web] ${action} failed: ${err instanceof Error ? err.message : String(err)}`);
     process.exit(1);
   }
 }
