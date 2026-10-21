@@ -1,0 +1,29 @@
+{
+  "source": "GitHub Actions job completion and filtered log",
+  "url": "https://github.com/sky-tree/rich4-renew-web/actions/runs/39635177666",
+  "commit": "736766bc1f2cf6b0ccb1bfac95fde8c6956308ae",
+  "node": "22.23.3",
+  "conclusion": "success",
+  "vitest": {
+    "passed": 161,
+    "skipped": 381,
+    "total": 542
+  },
+  "playwrightSmoke": {
+    "passed": 6
+  },
+  "webVerifier": {
+    "mode": "code-only",
+    "passed": 17
+  },
+  "checks": [
+    "application and E2E strict TypeScript",
+    "three real Nginx configuration variants",
+    "TURN signing/expiry test",
+    "production build /rich4/"
+  ],
+  "limitations": [
+    "Private assets absent in CI; skips are not gameplay passes",
+    "No real-device or cross-network acceptance in CI"
+  ]
+}

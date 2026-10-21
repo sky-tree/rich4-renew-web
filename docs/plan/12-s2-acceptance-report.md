@@ -36,6 +36,6 @@ PASS 仅针对明确写出的执行范围；PARTIAL 表示仍有必需子项未�
 
 自然结算设置、初末状态和结果见 [complete-match.json](evidence/2026-10-21-rc/complete-match.json)；本地更新回滚结果见 [release-cycle.json](evidence/2026-10-21-rc/release-cycle.json)。动画时钟加速只适用于结算功能测试，不能用于性能测量。截图含私有素材，仅在本地保留。
 
-`verify:web` 中的 HTTP 检查是模拟；新增 `test:nginx` 才会启动实际 Nginx、发送 HTTP 并检查鉴权/MIME/缓存/404。新增 CI 步骤尚不等于 GitHub 已执行通过，最新远端绿色运行对应旧基线。
+`verify:web` 中的 HTTP 检查是模拟；新增 `test:nginx` 才会启动实际 Nginx、发送 HTTP 并检查鉴权/MIME/缓存/404。候选 `736766b` 的 [Node 22.23.3 CI](https://github.com/sky-tree/rich4-renew-web/actions/runs/39635177666) 已通过类型、真实 Nginx、无素材单测（161 通过 / 381 跳过）、TURN 签名、生产构建/壳校验和 6 项浏览器冒烟；私有素材与真实设备另验。
 
 候选环境与后续实机结果统一登记在 [14-release-candidate-acceptance.md](14-release-candidate-acceptance.md)。
