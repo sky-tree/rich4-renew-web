@@ -689,6 +689,8 @@ export class Room {
   onLobby: () => void = () => {};
   onStart: (s: StartMsg) => void = () => {};
   onStatus: (text: string) => void = () => {};
+  /** A host digest arrived after our turn and disagrees with our saved digest. */
+  onDesync: (seq: number) => void = () => {};
   /** Chat (the user 2026-10-19: text only; a sender can be muted on this phone). */
   chat: ChatLine[] = [];
   onChat: (line: ChatLine) => void = () => {};
@@ -710,6 +712,7 @@ export class Room {
   private log: [unknown, boolean][] = [];
   private waiters = new Map<number, (v: unknown) => void>();
   private digests = new Map<number, number>();
+  private localDigests = new Map<number, number>();
   /** Maps question `seq` -> expected player `seat` so the host rejects spoofed or premature answers. */
   private expectedSeats = new Map<number, number>();
   /** Holds at most one unverified in-flight answer per `(peerId, seq)` when a guest's packet arrives slightly before host's `expectQuestionSeat(seq)`. */
@@ -782,7 +785,7 @@ export class Room {
         if (nextTokenCommit) m.tokenCommit = nextTokenCommit;
       }
     }
-    if (this.started && prev in this.started.seats) {
+    if (this.started && prev !== id && prev in this.started.seats) {
       this.started.seats[id] = this.started.seats[prev];
       delete this.started.seats[prev];
     }
@@ -1037,7 +1040,14 @@ export class Room {
         if (e) this.toHost?.send({ t: 'ans', seq, v: e[0] ?? null, u: e[1], ...(mySeat !== undefined ? { seat: mySeat } : {}) } satisfies Msg);
       }
     }
-    else if (m.t === 'digest') this.digests.set(m.seq, m.h);
+    else if (m.t === 'digest') {
+      const ours = this.localDigests.get(m.seq);
+      if (ours === undefined) this.rememberDigest(this.digests, m.seq, m.h);
+      else {
+        this.localDigests.delete(m.seq);
+        if (ours !== m.h) this.onDesync(m.seq);
+      }
+    }
     else if (m.t === 'chat') this.heard(m.line);
     else if (m.t === 'votes') { this.votes.set(m.target, new Set(m.voters)); this.onVotes(); }
     else if (m.t === 'kicked') this.away(m.id, m.seat);
@@ -1122,11 +1132,19 @@ export class Room {
     return new Promise(resolve => this.waiters.set(seq, resolve));
   }
 
-  /** Each turn: the host sends its game's digest; a guest compares (true while they agree). */
+  private rememberDigest(target: Map<number, number>, seq: number, h: number) {
+    target.set(seq, h);
+    // Bound unmatched packets/checkpoints during long outages or a host handover.
+    if (target.size > 256) target.delete(target.keys().next().value!);
+  }
+
+  /** Compare now if the host is ahead; otherwise retain our turn hash for the arriving packet. */
   digest(seq: number, h: number): boolean {
     if (this.host) { const m: Msg = { t: 'digest', seq, h }; for (const c of this.guests.values()) c.open && c.send(m); return true; }
     const theirs = this.digests.get(seq);
-    return theirs === undefined || theirs === h;
+    if (theirs === undefined) { this.rememberDigest(this.localDigests, seq, h); return true; }
+    this.digests.delete(seq);
+    return theirs === h;
   }
 
   // ---------------------------------------------------------------- chat, mute, kick votes

@@ -20,6 +20,23 @@ function stagingCredentials() {
   return { username, password, origin };
 }
 
+const privateCredentials = PRIVATE_STAGING ? stagingCredentials() : undefined;
+// The browser uses only an HttpOnly session. No reusable Basic credentials are
+// attached to every WebKit request (Safari's auth cache differs from Chromium).
+async function stagingSession() {
+  if (!privateCredentials) return undefined;
+  const response = await fetch(`${privateCredentials.origin}/api/session`, {
+    method: 'POST', headers: { Authorization: `Basic ${Buffer.from(`${privateCredentials.username}:${privateCredentials.password}`).toString('base64')}` },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (response.status !== 204) throw new Error(`Staging session bootstrap failed (${response.status})`);
+  const cookie = response.headers.get('set-cookie')?.split(';')[0];
+  if (!cookie?.startsWith('__Host-rich4-staging=')) throw new Error('Staging session cookie is missing');
+  return { cookies: [{ name: '__Host-rich4-staging', value: cookie.slice('__Host-rich4-staging='.length),
+    domain: new URL(privateCredentials.origin).hostname, path: '/', expires: -1, httpOnly: true, secure: true, sameSite: 'Lax' as const }], origins: [] };
+}
+const privateStorageState = await stagingSession();
+
 export default defineConfig({
   testDir: './tests/e2e',
   timeout: 45000,
@@ -37,7 +54,7 @@ export default defineConfig({
   outputDir: 'test-results/artifacts',
   use: {
     baseURL: BASE_URL,
-    httpCredentials: PRIVATE_STAGING ? stagingCredentials() : undefined,
+    storageState: privateStorageState,
     trace: PRIVATE_STAGING ? 'off' : 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: PRIVATE_STAGING ? 'off' : 'retain-on-failure',
@@ -45,6 +62,7 @@ export default defineConfig({
     navigationTimeout: 20000,
   },
   projects: [
+    ...(process.env.E2E_WEBKIT === '1' ? [{ name: 'ios-webkit', use: { ...devices['iPhone 14 Pro Max'], browserName: 'webkit' as const } }] : []),
     {
       name: 'desktop-chrome',
       use: {

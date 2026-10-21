@@ -907,10 +907,16 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
   let answer: Answer = undefined;
   // 派對模式: the game's questions are numbered; this phone sends its seats' answers, waits for the others'.
   let askSeq = 0, sendSeq = -1, sendSeat = -1, warnedDesync = false;
+  const warnDesync = () => {
+    if (warnedDesync || me !== session) return;
+    warnedDesync = true;
+    void hud.flash('和房主的遊戲不同步了\n請把這局截圖給開發者', 2600);
+  };
   const waiting = document.createElement('div');
   waiting.className = 'pt-waiting'; waiting.hidden = true;
   if (room) {
     stage.append(waiting);
+    room.onDesync = warnDesync;
     room.onStatus = t => {
       if (room.kicked) {
         // Its own notice over everything (a box could queue behind the game's), then back to the title.
@@ -1029,7 +1035,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
       if (room) {
         const seq = askSeq++;
         room.expectQuestionSeat(seq, s.p);
-        if (s.t === 'turn' && !room.digest(seq, digest()) && !warnedDesync) { warnedDesync = true; void hud.flash('和房主的遊戲不同步了\n請把這局截圖給開發者', 2600); }
+        if (s.t === 'turn' && !room.digest(seq, digest())) warnDesync();
         if (!room.mine.has(s.p)) {
           // Another phone's player decides: wait for the answer. A seat sent away (voted out) is answered by the
           // host for the computer: 托管 at its turn (then the rules play it), the safe answer otherwise.
