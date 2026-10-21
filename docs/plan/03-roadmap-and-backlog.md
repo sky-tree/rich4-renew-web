@@ -118,7 +118,7 @@ M0–M6 的历史勾选仅代表对应代码/本地阶段完成；后续的**云
 - **M9-01～04**：请求/性能基准、素材加载、Canvas 优化、真正的 WebGL 对比（当前 WebGL 还会双重绘制）。
 - **M10-01～04**：PeerServer/STUN/TURN、跨 NAT 长局、异常与安全回归、3–5 人受控测试。
 
-发现与对应任务的 GitHub Issues [#1～#10](https://github.com/sky-tree/rich4-renew-web/issues) 已创建，编号、验收和待办详见 [10-github-issue-register.md](10-github-issue-register.md)；登记完成不代表修复完成。
+发现与对应任务的 GitHub Issues [#1～#10](https://github.com/sky-tree/rich4-renew-web/issues) 已创建，编号、验收和待办详见 [10-github-issue-register.md](10-github-issue-register.md)，具体时间窗口和依赖见 [11-execution-sprints.md](11-execution-sprints.md)；登记完成不代表修复完成。
 
 ## 每个阶段的“完成”定义
 
