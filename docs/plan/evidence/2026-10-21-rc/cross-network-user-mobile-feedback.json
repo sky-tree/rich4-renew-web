@@ -1,0 +1,23 @@
+{
+  "candidate": "a5f27de",
+  "reportedDate": "2026-10-22",
+  "mode": "User physical devices on separate networks; private screenshots not committed",
+  "host": "macOS Chrome / home broadband",
+  "guest": "iOS Safari / mobile data",
+  "passed": [
+    "Both show two members",
+    "Bidirectional chat",
+    "User reports dates and resources agree"
+  ],
+  "failed": [
+    "Phone missing buildings and facility art",
+    "ATM images missing",
+    "Cannot resume after phone network interruption",
+    "Repeated username/password prompts"
+  ],
+  "limitations": [
+    "No browser/OS version numbers",
+    "No packet-level physical relay statistics",
+    "No claim of 20 complete rounds from user feedback"
+  ]
+}

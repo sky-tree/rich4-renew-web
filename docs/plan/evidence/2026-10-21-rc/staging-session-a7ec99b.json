@@ -1,0 +1,55 @@
+{
+  "timestamp": "2026-10-21T16:52:31.520Z",
+  "mode": "Live staging session auth; credentials and cookies kept in memory only",
+  "records": [
+    {
+      "path": "/assets/index-CCtbxbue.js",
+      "identity": "basic",
+      "status": 200,
+      "noSetCookie": true
+    },
+    {
+      "path": "/",
+      "identity": "session",
+      "status": 200,
+      "noBasicChallenge": true
+    },
+    {
+      "path": "/api/party-config",
+      "identity": "session",
+      "status": 200,
+      "noBasicChallenge": true
+    },
+    {
+      "path": "/assets/maps/maps.json",
+      "identity": "session",
+      "status": 200,
+      "noBasicChallenge": true
+    },
+    {
+      "path": "/assets/maps/maps.json",
+      "identity": "anonymous",
+      "status": 401,
+      "noBasicChallenge": true
+    },
+    {
+      "path": "/assets/maps/maps.json",
+      "identity": "tampered",
+      "status": 401,
+      "noBasicChallenge": true
+    },
+    {
+      "path": "/?relay=1",
+      "identity": "anonymous",
+      "status": 401,
+      "noBasicChallenge": true
+    },
+    {
+      "path": "/api/session",
+      "identity": "anonymous",
+      "status": 200,
+      "noBasicChallenge": true
+    }
+  ],
+  "formLogin": 303
+}

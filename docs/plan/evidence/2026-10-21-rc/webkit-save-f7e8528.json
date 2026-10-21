@@ -1,0 +1,15 @@
+{
+  "candidate": "f7e8528",
+  "framework": "Playwright WebKit 27.2 / iPhone 14 Pro Max emulation",
+  "firstRun": {
+    "manualSave": "failed at clean-boot check after state restoration and continued roll",
+    "autoSave": "passed",
+    "error": "8 background robot-animation fetches reported access control errors around page reload; no authentication 401 observed"
+  },
+  "diagnosticRerun": {
+    "manualSave": "passed",
+    "observedFailures": "3 background animation requests cancelled during page reload; no page errors"
+  },
+  "status": "partial; intermittent reload/prefetch error needs further isolation",
+  "physicalDevice": false
+}

@@ -19,5 +19,6 @@
     "Reconnection",
     "3-5 players",
     "Selected ICE candidate statistics on the physical devices"
-  ]
+  ],
+  "followUp": "See cross-network-user-mobile-feedback.json for subsequent device details and failures; this earlier lobby/chat result is not full acceptance."
 }

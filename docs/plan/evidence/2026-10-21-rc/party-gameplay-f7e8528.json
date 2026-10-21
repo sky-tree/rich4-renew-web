@@ -1,0 +1,52 @@
+{
+  "candidate": "f7e8528",
+  "status": "passed",
+  "minimumDays": 20,
+  "mode": "Two Chromium pages on one Mac through remote TURN, UI autopilot and accelerated animation clocks",
+  "fault": "Closed actual guest RTCPeerConnection; not a physical network outage",
+  "equality": "Every serialized SaveData field except savedAt; SHA-256 checkpoints",
+  "checkpoints": [
+    {
+      "days": 0,
+      "hash": "4c8eec14bcdb348224fef2ac08a8db9ed634b0367b0936aa4a2f32f6d48fe53d",
+      "phase": "initial"
+    },
+    {
+      "days": 21,
+      "hash": "0a3fd5f3660cec3b530ecbe851933a65657abb8679bb6aafbca946167e11d0fd",
+      "phase": "twenty-days-before-drop"
+    },
+    {
+      "days": 21,
+      "hash": "0a3fd5f3660cec3b530ecbe851933a65657abb8679bb6aafbca946167e11d0fd",
+      "phase": "after-reconnect"
+    },
+    {
+      "days": 22,
+      "hash": "5e972513faea57f3d200e28ecf5ec16dd0d2752e025f0484e6949ee14b4c0456",
+      "phase": "continued-after-reconnect"
+    }
+  ],
+  "guestTransport": [
+    {
+      "connection": "closed",
+      "ice": "closed"
+    },
+    {
+      "connection": "closed",
+      "ice": "closed"
+    },
+    {
+      "connection": "closed",
+      "ice": "closed"
+    },
+    {
+      "connection": "closed",
+      "ice": "closed"
+    },
+    {
+      "connection": "connected",
+      "ice": "connected"
+    }
+  ]
+}
