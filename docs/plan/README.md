@@ -1,6 +1,6 @@
 # Rich4 Renew Web — 开发计划与技术路线
 
-> 文档版本：v1.2 · 更新日期：2026-10-21
+> 文档版本：v1.3 · 更新日期：2026-10-21（增加线上审核与 M7–M10 后续计划）
 >
 > 项目：[`sky-tree/rich4-renew-web`](https://github.com/sky-tree/rich4-renew-web)（纯 Web 专项 Fork · 私人使用，不公开）
 >
@@ -28,6 +28,8 @@
 | [06-build-test-and-deploy.md](06-build-test-and-deploy.md) | 多端构建（Win/Mac）、云端服务器 Nginx、回滚 | 部署验证、排障 |
 | [07-acceptance-and-quality.md](07-acceptance-and-quality.md) | 核心回归、指标、验收报告模板 | PR、阶段验收 |
 | [08-risks-and-decisions.md](08-risks-and-decisions.md) | 风险台账、决策记录、变更治理 | 架构评审、上游同步 |
+| [09-post-deploy-verification.md](09-post-deploy-verification.md) | M7–M10 线上修复、浏览器/真机验收、性能与联机放行标准 | 当前后续开发与验收执行 |
+| [10-github-issue-register.md](10-github-issue-register.md) | 本轮发现的问题和可直接提交的 GitHub Issue 草案 | 问题分派、核验、权限恢复后登记 |
 
 ## 1. 一页结论
 
@@ -46,10 +48,11 @@
 | **M0 开发基线** | **已实现** | **已通过**（55 文件 / 529 项测试） | 不适用（本地基线） | 完整素材 36,109 文件已挂载并完成全文件真实字节 SHA-256 校验 |
 | **M1 纯 Web 化** | **已实现** | **已通过**（`build:web` + 单测） | **待云端实机回归** | 已移除 `@capacitor/*`，JS 分包后主包降至 ~325 KB |
 | **M2 资源分层与真实哈希** | **已实现** | **已通过**（`audit:assets` 0 缺失） | **待云端实测首屏耗时** | `web-packs.json` 记录真实内容 SHA-256，`verify:web` 强制校验素材闭包 |
-| **M3 发布、回滚与 CI** | **已实现** | **已通过**（本地冒烟 + 回滚单测） | **待部署至云端 Nginx** | 已新增 `.github/workflows/ci.yml`；`release:web` 禁止覆盖已有版本 |
+| **M3 发布、回滚与 CI** | **已实现** | **已通过**（本地冒烟 + 回滚单测） | **已部署测试版，待真实回滚和浏览器验收** | 2026-10-21 VPS 运行 `0.6.6-66cf0b3`；检测到 `rich4-ctl.sh rollback` 命令不一致，参见 M7 |
 | **M4 渲染接口与 WebGL 实验** | **已实现** | **已通过**（Canvas 主用 + WebGL 管线单测） | **保持实验状态** | `BoardView` 已接入 `?renderer=webgl` 与完整着色器绘制，默认保持 Canvas 2D |
 | **M5 联机安全与存档迁移** | **已实现** | **已通过**（含 XSS/防冒用/抢答拦截单测） | **待跨网双机/多机联机实测** | 已修复 P0 聊天 XSS、重连令牌校验、座位归属校验与 6 位高熵房间码 |
 | **M6 PWA、离线包与脱敏诊断** | **已实现** | **已通过**（SW 注入 JS/CSS + 作用域单测） | **待云端 HTTPS 离线实测** | `sw.js` 预缓存构建产物、仅注销 `/rich4/` 作用域、选图 UI 接入离线包 |
+| **M7–M10 稳定化** | **已规划，待实施** | **部分线上 HTTP + VPS 单测已核实** | **尚无完整游戏、真机、性能、跨 NAT 验收签字** | [09 后续计划](09-post-deploy-verification.md) / [10 Issue 台账](10-github-issue-register.md) |
 
 ## 3. 项目边界及多端环境
 
@@ -59,7 +62,11 @@
   2. **Mac 开发设备**：日常编码、Safari 兼容性调试、资源审计与构建验证。
   3. **云端服务器（Linux VPS）**：用于部署 `/rich4/` Nginx 静态服务及验证 WebRTC/TURN 跨网联机。
 
-## 4. 下一步重点工作
+## 4. 下一步重点工作（2026-10-21 审核后更新）
 
-1. **云端 VPS 真实部署演练**：在私人云端服务器挂载 `rich4-assets.tar` 素材目录，加载 [`deploy/nginx-rich4.conf`](../../deploy/nginx-rich4.conf)，运行 `npm run build:web && npm run verify:web && npm run release:web` 完成首次真实 HTTPS 发布与一键回滚演练。
-2. **多设备跨网络实机验收**：按照 [`07-acceptance-and-quality.md`](07-acceptance-and-quality.md) 的 T-01 ~ T-14 用例，在桌面 Chrome/Safari 与移动 iOS Safari / Android Chrome 上完成完整对局、断网 PWA 启动与跨网联机验收。
+1. **M7 先修已定位的问题**：修正 `rich4-ctl.sh` 回滚入口、缺失 PWA 图标、Manifest MIME、Service Worker 缓存策略；核查认证下的 Cloudflare 缓存。已经有 HTTPS 测试版，但尚未做真实回滚验收。
+2. **M8 完整浏览器游戏验收**：引入 Playwright 并进行真实一局结算、历史存档恢复、Windows/Mac/iPhone/iPad/Android 真机测试（T-01～T-14）。
+3. **M9/M10 数据驱动优化和联机**：记录冷/热启动、首地图流量、帧时间/内存，保留 Canvas 为默认；在跨 NAT PeerServer/TURN 长局通过后才扩大受控内测。
+4. **工单现状**：本轮 GitHub 连接器创建 Issues 返回 403，待确认权限后根据 [10-github-issue-register.md](10-github-issue-register.md) 的 10 条草案登记，**不得将草案当成已创建的 Issue**。
+
+**实测快照（2026-10-21）**：代码 HEAD `0dcd86a`，VPS 激活 `0.6.6-66cf0b3`；`/rich4/` 经授权 200、未授权 401；地图 JSON 经授权 200、未授权 401；未知素材 404；VPS Vitest 55 文件/529 用例通过。完整浏览器对局未执行。详情及复验方法见 [09](09-post-deploy-verification.md)。

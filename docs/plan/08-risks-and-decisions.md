@@ -21,6 +21,11 @@
 | R-13 | 与上游持续合并造成冲突 | 中 | 原仓库仍开发 App/规则/UI | 小 PR、最小平台差异、独立功能回归 | 全程 |
 | R-14 | 将低权限 staging 误当成素材授权 | **阻断** | 静态资源 URL 可能被传播或直接访问 | 不公开未授权素材；访问控制仅为辅助 | M0/M3 |
 | R-15 | 高性能浏览器与旧 Safari API 差异 | 中 | OffscreenCanvas、ImageBitmap、WebGL 能力不同 | 检测能力与回退，真实 iOS/iPad 测试 | M2/M4 |
+| R-16 | 受限素材与 CDN/共享缓存隔离未证实 | 高 | 认证素材响应部分返回 `Cache-Control: public`；未发现真实绕过 | 检查 Cloudflare 与 `Authorization` 行为、跨会话隔离与许可边界 | M7 |
+| R-17 | VPS 回滚助手脚本指向不存在的 npm 命令 | 高 | `rich4-ctl.sh` 用 `rollback:web`，`package.json` 仅有 `release:web` | 修复入口、自动化和授权窗口 A→B→A 演练 | M7 |
+| R-18 | PWA 清单/图标与 SW 缓存头和部署期望不一致 | 高 | 图标路径缺失、Manifest MIME 异常、SW 返回 4h 缓存 | 修复资源和 MIME，复核实际网关/CDN 生效规则与版本更新 | M7 |
+| R-19 | 单测通过但未完成真实玩家/跨端/联机验收 | 高 | 当前 55/529 单测通过、缺少完整对局与真机/跨 NAT 证据 | Playwright、人工完整对局、设备与联机矩阵、门槛报告 | M8/M10 |
+| R-20 | WebGL 实验路径双绘制造成性能判断失真 | 中 | `BoardView` 仍 Canvas 绘制并再调用实验 WebGL | 真正区分后端，用固定地图与设备作性能/视觉 A/B | M9 |
 
 ## 2. Architecture Decision Records（ADR）
 

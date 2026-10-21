@@ -142,3 +142,18 @@ RICH4_NO_ASSETS=1 npm run build
 - Nginx 版本目录、回滚 SHA 与演练：
 - 发布决定：通过 / 拒绝 / 仅受控测试
 ```
+
+## 9. 2026-10-21 云端只读审核增量结果（不是最终生产验收）
+
+| 项目 | 实际结果 | 备注 |
+| --- | --- | --- |
+| VPS 当前运行版本 | `0.6.6-66cf0b3`（`gitSha: 66cf0b3`） | 和当日 `main:0dcd86a` 不同，不自动升级 |
+| HTTPS 认证 | `/rich4/` 授权 HTTP 200，匿名 HTTP 401 | 尚需认证/CDN 缓存边界交叉测试 |
+| 静态素材 | 授权地图 JSON 200，匿名 401；不存在的图片 404 | 只验证有限路径，非全素材 E2E |
+| PWA | Manifest 为 `application/octet-stream`，引用的 PNG/WebP 图标路径缺失；SW 为 4h cache-control | PWA 安装、刷新、离线/回滚未通过实机验证 |
+| Vitest | VPS 55 测试文件 / 529 项通过 | 单测不是浏览器完整对局 |
+| 回滚助手 | `rollback:web` 在 `package.json` 不存在 | 尚未触碰当前线上版本做实测 |
+| 全游戏与真机 | **NOT RUN** | 本轮未取得可用的交互浏览器环境，不能标 PASS |
+| 跨 NAT / TURN | **NOT RUN** | 需不同网络真实玩家设备 |
+
+**新增准入条件**：下一版本在扩大测试人员范围前需落实 [09 后续计划](09-post-deploy-verification.md) 的 M7 环境/安全修复与 M8 至少一场真实完整对局，并提交可审计测试报告。Issues 注册状态见 [10 工单台账](10-github-issue-register.md)。
