@@ -6,7 +6,7 @@ import { Game, SPEED } from '../core/game';
 import { nodeById } from '../core/board';
 import { loadGame, saveGame, type SaveData } from '../core/save';
 import type { Answer, GameSettings } from '../core/types';
-import { ASSETS, loadMap, mapList, mapOfflineUrls, type MapInfo } from './assets';
+import { ASSETS, loadMap, mapList, resolveMapOfflinePackSpec, type MapInfo } from './assets';
 import { BoardView } from './board-view';
 import { Hud } from './hud';
 import { GoButton, Toolbar } from './controls';
@@ -50,7 +50,7 @@ import { attachLedger, gameResults, ledgerOf, worldResults } from '../core/stats
 import { pickNextMap, showResults } from './results';
 import { nextSettings, recordResult, type CarriedSettings, type RunRecord } from './next-game';
 import { phrases, shrinkText } from './text';
-import { defaultTelemetry, downloadMapOfflinePack, initAppShellPwa, listCachedOfflineMaps, removeMapOfflinePack } from '../assets/offline-pwa';
+import { canFitOfflinePack, defaultTelemetry, downloadMapOfflinePack, initAppShellPwa, listCachedOfflineMaps, removeMapOfflinePack } from '../assets/offline-pwa';
 
 const app = document.getElementById('app')!;
 // The orientation chosen in the settings is applied at start, before the title screen is laid out.
@@ -319,6 +319,7 @@ function newGame() {
   window.addEventListener('resize', fit);
   const cachedMaps = new Set<string>();
   let offlineBusy = false;
+  let offlineErr = '';
   void listCachedOfflineMaps().then(ids => {
     for (const id of ids) cachedMaps.add(id);
     if (app.querySelector('.ng')) render();
@@ -347,7 +348,7 @@ function newGame() {
           <button class="chip${state.kind === 'orig' ? ' on' : ''}" data-maps="orig">原版地圖</button>
           <button class="chip${state.kind === 'custom' ? ' on' : ''}" data-maps="custom">自製地圖 ${maps.filter(m => m.custom && !m.hidden).length}</button>
           <button class="chip${ty ? ' on' : ''}" data-maps="tycoon">大富豪模式</button>
-          ${ty ? '' : `<button class="chip${curOffline ? ' on' : ''}" data-offline-map="${state.mapId}">${offlineBusy ? '快取中…' : curOffline ? '✓ 已離線快取' : '離線快取'}</button>`}</div>
+          ${ty ? '' : `<button class="chip${curOffline ? ' on' : ''}" data-offline-map="${state.mapId}" title="${offlineErr}">${offlineBusy ? '快取中…' : offlineErr ? '⚠ 快取失敗（重試）' : curOffline ? '✓ 已離線快取' : '離線快取'}</button>`}</div>
           ${pages > 1 ? `<div class="ng-pager"><button class="chip" data-page="-1">‹</button><span>${page + 1}/${pages}</span><button class="chip" data-page="1">›</button></div>` : ''}</div>
         ${ty ? `<div class="ng-tycoon">${TYCOON_MAPS.map(id => `<figure><img src="${cityThumb(id)}" alt="" style="--cc:${CITY_COLORS[id]}"><figcaption>${CITY_NAMES[id]}</figcaption></figure>`).join('')}
           <p class="ng-tycoon-note">${phrases('你一人對上其他 11 位角色，大家隨機分散在五座城市。\n搭新幹線、飛機往來各地，讓所有對手破產，就能成為「首富大富豪」。')}</p></div>` : `<div class="ng-maps">${shown.map(m => `<button class="ng-map${m.id === state.mapId ? ' on' : ''}" data-map="${m.id}"><img src="${m.thumbnail}" alt=""><span>${m.name}</span></button>`).join('') || '<p class="info-none">沒有可用的地圖</p>'}</div>`}</section>
@@ -392,10 +393,11 @@ function newGame() {
       if (first && !maps.some(m => m.id === state.mapId && m.kind === state.kind && !m.hidden)) state.mapId = first.id;
       page = 0;
     }
-    if (d.map) state.mapId = Number(d.map);
+    if (d.map) { state.mapId = Number(d.map); offlineErr = ''; }
     if (d.offlineMap) {
       if (offlineBusy) return;
       const mapKey = String(d.offlineMap);
+      offlineErr = '';
       if (cachedMaps.has(mapKey)) {
         offlineBusy = true;
         render();
@@ -409,12 +411,24 @@ function newGame() {
         if (!mapObj) return;
         offlineBusy = true;
         render();
-        void downloadMapOfflinePack(mapKey, mapOfflineUrls(mapObj)).then(res => {
-          if (res.cachedCount > 0) cachedMaps.add(mapKey);
-        }).finally(() => {
-          offlineBusy = false;
-          render();
-        });
+        void resolveMapOfflinePackSpec(mapObj)
+          .then(async spec => {
+            if (spec.bytes) {
+              const fit = await canFitOfflinePack(spec.bytes);
+              if (!fit.ok) throw new Error(fit.reason || '儲存空間不足');
+            }
+            const res = await downloadMapOfflinePack(mapKey, spec.urls, {
+              contentHash: spec.contentHash,
+            });
+            if (res.cachedCount > 0) cachedMaps.add(mapKey);
+          })
+          .catch(err => {
+            offlineErr = (err as Error)?.message || '離線快取失敗';
+          })
+          .finally(() => {
+            offlineBusy = false;
+            render();
+          });
       }
       return;
     }

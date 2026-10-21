@@ -3,10 +3,13 @@ import { stickerSrc } from './party-chat';
 import {
   authorizeSeatAnswer,
   commitReconnectToken,
+  confirmReconnectHandshake,
+  createReconnectTokenState,
   generateReconnectToken,
   generateRoomCode,
   ICE_SERVERS,
   PARTY_PROTOCOL_VERSION,
+  prepareReconnectHandshake,
   resolvePartyNetConfig,
   setPartyNetConfig,
   validateIncomingMsg,
@@ -14,7 +17,7 @@ import {
   type Member,
 } from './party-net';
 
-describe('Party networking security, credential isolation and protocol validation (M5 & P0 fixes)', () => {
+describe('Party networking security, credential isolation and protocol validation (M5 & P0/P1 fixes)', () => {
   afterEach(() => {
     setPartyNetConfig(null);
   });
@@ -139,7 +142,53 @@ describe('Party networking security, credential isolation and protocol validatio
     expect(ok.ok).toBe(true);
   });
 
-  it('enforces seat ownership on lockstep `ans` actions so players cannot answer for other seats (P0-2)', () => {
+  it('preserves confirmed reconnect token across dropped reconnect attempts until host ack (P1-02)', () => {
+    const state = createReconnectTokenState();
+    const initialSecret = state.confirmedToken;
+
+    // 1. First join (`peer-alice-1`)
+    const hs1 = prepareReconnectHandshake(state, 'peer-alice-1');
+    expect(hs1.prev).toBeUndefined();
+    expect(hs1.reconnectToken).toBeUndefined();
+    expect(hs1.tokenCommit).toBe(commitReconnectToken(initialSecret));
+    expect(confirmReconnectHandshake(state, 'peer-alice-1', hs1.tokenCommit)).toBe(true);
+    expect(state.confirmedPeerId).toBe('peer-alice-1');
+
+    const members: Member[] = [
+      { id: 'peer-alice-1', name: '孫小美', character: 9, tokenCommit: hs1.tokenCommit },
+    ];
+
+    // 2. First reconnect attempt (`peer-alice-2`) — message drops before reaching host!
+    const hsDrop = prepareReconnectHandshake(state, 'peer-alice-2');
+    expect(hsDrop.prev).toBe('peer-alice-1');
+    expect(hsDrop.reconnectToken).toBe(initialSecret);
+    expect(hsDrop.tokenCommit).not.toBe(hs1.tokenCommit);
+    // Crucial: `state.confirmedToken` has NOT been rotated yet because host never acked `peer-alice-2`
+    expect(state.confirmedToken).toBe(initialSecret);
+
+    // 3. Second reconnect attempt (`peer-alice-3`) after connection drop
+    const hsRetry = prepareReconnectHandshake(state, 'peer-alice-3');
+    expect(hsRetry.prev).toBe('peer-alice-1');
+    expect(hsRetry.reconnectToken).toBe(initialSecret);
+    // Host still has `hs1.tokenCommit` and successfully verifies `hsRetry.reconnectToken`!
+    const hostVerified = verifyReconnectClaim(members, hsRetry.prev!, hsRetry.reconnectToken, false);
+    expect(hostVerified.ok).toBe(true);
+
+    // Host updates member to `peer-alice-3` with `hsRetry.tokenCommit` and sends `lobby` ack
+    members[0].id = 'peer-alice-3';
+    members[0].tokenCommit = hsRetry.tokenCommit;
+    expect(confirmReconnectHandshake(state, 'peer-alice-3', hsRetry.tokenCommit)).toBe(true);
+    expect(state.confirmedPeerId).toBe('peer-alice-3');
+    expect(state.confirmedToken).not.toBe(initialSecret);
+
+    // Old token can no longer be replayed against the updated host commitment
+    expect(verifyReconnectClaim(members, 'peer-alice-3', initialSecret, false)).toEqual({
+      ok: false,
+      reason: 'invalid-reconnect-token',
+    });
+  });
+
+  it('enforces seat ownership AND rejects unopened future question sequences (P0-2 & P1-01)', () => {
     const seats: Record<string, number> = {
       'peer-host': 0,
       'peer-alice': 1,
@@ -147,6 +196,16 @@ describe('Party networking security, credential isolation and protocol validatio
     };
     const kickedSeats = new Set<number>();
     const expectedSeats = new Map<number, number>([[5, 1]]); // Question seq=5 belongs to seat 1 (Alice)
+
+    // P1-01: Any attempt to pre-inject an answer for an unopened future question (e.g. seq=6 or seq=10) must be rejected
+    expect(authorizeSeatAnswer(seats, kickedSeats, expectedSeats, 'peer-alice', 6, 1)).toEqual({
+      ok: false,
+      reason: 'unopened-question-seq',
+    });
+    expect(authorizeSeatAnswer(seats, kickedSeats, expectedSeats, 'peer-bob', 6, 2)).toEqual({
+      ok: false,
+      reason: 'unopened-question-seq',
+    });
 
     // Bob (seat 2) tries to send an answer for seq=5 (which belongs to Alice, seat 1)
     expect(authorizeSeatAnswer(seats, kickedSeats, expectedSeats, 'peer-bob', 5)).toEqual({
@@ -166,7 +225,7 @@ describe('Party networking security, credential isolation and protocol validatio
       reason: 'no-seat-owned',
     });
 
-    // Alice (seat 1) answers seq=5 legitimately
+    // Alice (seat 1) answers opened seq=5 legitimately
     expect(authorizeSeatAnswer(seats, kickedSeats, expectedSeats, 'peer-alice', 5, 1)).toEqual({
       ok: true,
       seat: 1,

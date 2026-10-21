@@ -2,6 +2,7 @@
  * Sprite frames by original resource (archive + id), preferring the redrawn 4x frames (rich4-hd) and
  * falling back to the extracted originals (rich4-assets). Frames load on demand; `onLoad` asks for a redraw.
  */
+import { resolveCdnAssetUrl } from '../assets/offline-pwa';
 import { ASSETS } from './assets';
 import { decodeCropped, decodeImage, picSize, releasePic } from './decode';
 import { memTier } from './mem-tier';
@@ -45,7 +46,7 @@ export class SpriteBank {
 
   static async create(): Promise<SpriteBank> {
     const bank = new SpriteBank();
-    const get = (u: string) => fetch(u).then(r => (r.ok ? r.json() : null)).catch(() => null);
+    const get = (u: string) => fetch(resolveCdnAssetUrl(u)).then(r => (r.ok ? r.json() : null)).catch(() => null);
     const [orig, hd, outline] = await Promise.all([
       get(`${ASSETS}/orig/manifest.json`), get(`${ASSETS}/hd/manifest-hd.json`), get(`${ASSETS}/orig/outline-colors.json`),
     ]);
@@ -85,18 +86,18 @@ export class SpriteBank {
     const key = this.key(archive, id);
     // Whole pictures (RAW16: card art, holiday photos) have one image and no frames.
     const hdEntry = this.hd.get(key), origEntry = this.orig.get(key);
-    if (hdEntry?.file) return { src: `${ASSETS}/hd/${archive}/${hdEntry.file}`, w: (hdEntry.width ?? 0) / 4, h: (hdEntry.height ?? 0) / 4, ax: 0, ay: 0, hd: true };
+    if (hdEntry?.file) return { src: resolveCdnAssetUrl(`${ASSETS}/hd/${archive}/${hdEntry.file}`), w: (hdEntry.width ?? 0) / 4, h: (hdEntry.height ?? 0) / 4, ax: 0, ay: 0, hd: true };
     if (origEntry?.file && !origEntry.frames) {
-      if (hdEntry?.frames?.length === 0 || !hdEntry) return { src: `${ASSETS}/orig/${archive}/${origEntry.file}`, w: origEntry.width ?? 0, h: origEntry.height ?? 0, ax: 0, ay: 0, hd: false };
+      if (hdEntry?.frames?.length === 0 || !hdEntry) return { src: resolveCdnAssetUrl(`${ASSETS}/orig/${archive}/${origEntry.file}`), w: origEntry.width ?? 0, h: origEntry.height ?? 0, ax: 0, ay: 0, hd: false };
     }
     const hd = hdEntry?.frames?.[frame];
     if (hd) {
       const e = this.hd.get(key)!;
-      return { src: `${e.dir ?? `${ASSETS}/hd/${key}-${e.type}`}/${hd.file}`, w: hd.width / 4, h: hd.height / 4, ax: hd.anchor_x / 4, ay: hd.anchor_y / 4, hd: true };
+      return { src: resolveCdnAssetUrl(`${e.dir ?? `${ASSETS}/hd/${key}-${e.type}`}/${hd.file}`), w: hd.width / 4, h: hd.height / 4, ax: hd.anchor_x / 4, ay: hd.anchor_y / 4, hd: true };
     }
     const f = origEntry?.frames?.[frame];
     if (!f?.file) return null;
-    return { src: `${ASSETS}/orig/${archive}/${f.file}`, w: f.width, h: f.height, ax: f.anchor_x, ay: f.anchor_y, hd: false };
+    return { src: resolveCdnAssetUrl(`${ASSETS}/orig/${archive}/${f.file}`), w: f.width, h: f.height, ax: f.anchor_x, ay: f.anchor_y, hd: false };
   }
 
   /** The original frames' sizes and anchors (for rules that measure sprites, e.g. a mini game's catch box). */

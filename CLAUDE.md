@@ -134,7 +134,7 @@ npm run assets
 - **编译与构建**：`npx tsc --noEmit` 零错误通过；`RICH4_NO_ASSETS=1 npm run build:web` 正常产出 `/rich4/` 子路径构建包（手动分包后主 JS 降至 ~325 KB，无 >500 KB chunk 警告）及自动注入全量 JS/CSS 预缓存列表的 PWA App Shell（`manifest.webmanifest`、`sw.js`）；`npm run verify:web` 严格发布校验（含完整素材与真实字节 SHA-256 校验）全部通过；已配置 `.github/workflows/ci.yml`。
 - **本地素材与全量测试**：
   - 素材包：`rich4-assets.tar`（SHA-256: `0a2296aa05c8c91edd578475fa0615e07adfb8725b47ab15bc059397b539a1f4`），解压至 `game/public/assets/` 共 36,109 个文件、约 1.64 GB（`npm run audit:assets` 对全量文件真实字节计算 SHA-256 并校验 0 缺失，`shell` 包 53 文件 / 7.30 MiB）。
-  - 单元测试：**55 个测试文件 / 521 项测试 100% 通过**。
+  - 单元测试：**55 个测试文件 / 529 项测试 100% 通过**（无素材 CI 模式下 148 项通过 / 381 项跳过）。
 - **M1–M6 核心交付摘要**：
   - **M1（纯 Web 化）**：彻底移除 `@capacitor/*` 原生依赖与平台分支，`saves.ts` / `share.ts` / `orientation.ts` / `audio.ts` 全部收敛为纯 Web API，支持 `/rich4/` 子路径与 `absAssetUrl()`，配置 `manualChunks` 拆分 JS 包体积。
   - **M2（资源分层与真实内容哈希）**：新增 `audit:assets`（真实文件字节 SHA-256）、`bundle:web`（`shell / core / map / ground / optional`）与 `AssetLoader`（并发控制、指数退避重试、去重、404 fail-fast）。

@@ -124,7 +124,7 @@ export function simulateStaticRequest(rawUrl, distDir, publicAssetsDir, basePref
   };
 }
 
-export async function runHttpSmokeTest(distDir, publicAssetsDir, basePrefix = '/rich4/', options = {}) {
+export function runHttpSmokeTestSync(distDir, publicAssetsDir, basePrefix = '/rich4/', options = {}) {
   const requireAssets = options.requireAssets ?? false;
   const cleanPrefix = basePrefix.replace(/\/$/, '');
   const checks = [];
@@ -225,13 +225,17 @@ export async function runHttpSmokeTest(distDir, publicAssetsDir, basePrefix = '/
           `Asset SHA-256 content integrity check failed (${integrity.corrupted.length} corrupted/missing): ${integrity.corrupted.slice(0, 5).join('; ')}`,
         );
       }
-      checks.push(`SHA-256 content integrity verified for ${integrity.verifiedCount} critical & shell asset files`);
+      checks.push(`SHA-256 content integrity verified for ${integrity.verifiedCount} asset files (full pack & manifest byte audit)`);
     } else if (requireAssets) {
       throw new Error(`Missing ${webPacksPath}. Run 'npm run audit:assets' first.`);
     }
   }
 
   return checks;
+}
+
+export async function runHttpSmokeTest(distDir, publicAssetsDir, basePrefix = '/rich4/', options = {}) {
+  return runHttpSmokeTestSync(distDir, publicAssetsDir, basePrefix, options);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

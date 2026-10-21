@@ -10,6 +10,7 @@
  * such failures the workers are not used any more. A fetch that does not answer within `FETCH_MS` fails.
  */
 
+import { resolveCdnAssetUrl } from '../assets/offline-pwa';
 import { watch } from './watchdog';
 
 export type Pic = ImageBitmap | HTMLImageElement | HTMLCanvasElement;
@@ -110,7 +111,8 @@ function lane(name: string): Lane | null {
   return l;
 }
 
-async function fetchBlob(url: string): Promise<Blob> {
+async function fetchBlob(rawUrl: string): Promise<Blob> {
+  const url = resolveCdnAssetUrl(rawUrl);
   const ctl = typeof AbortController === 'function' ? new AbortController() : null;
   const timer = setTimeout(() => ctl?.abort(), FETCH_MS);
   try {

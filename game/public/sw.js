@@ -1,15 +1,16 @@
 /**
- * App Shell Service Worker for Rich4 Renew Web (M6-01 / M6-02).
+ * App Shell Service Worker for Rich4 Renew Web (M6-01 / M6-02 / P1-4 / P1-04 / P2).
  *
  * Design principles:
  * 1. Scoped strictly to the current registration directory (e.g. `/rich4/` or `/`).
  * 2. Pre-caches the complete minimal runnable App Shell (`./`, `./index.html`,
  *    `./manifest.webmanifest`, plus the build's JS and CSS bundles injected at build time).
+ *    Does NOT swallow `cache.addAll()` errors so an incomplete App Shell is never activated (P2 fix).
  *    NEVER silently pre-caches the 1.64 GB full map/audio asset corpus.
  * 3. Serves fingerprinted build bundles (`assets/*.js`, `assets/*.css`, `assets/*.woff2`)
  *    with Cache-First, while HTML navigations use Network-First with App Shell fallback.
- * 4. Checks explicit opt-in offline map caches (`rich4-offline-map-*`) when matching
- *    game asset requests (`assets/maps/*`, `assets/ground/*`, `assets/hd/*`, `assets/orig/*`).
+ * 4. Checks explicit opt-in offline map caches (`rich4-offline-map-*`) for both same-origin
+ *    and external CDN `/assets/` requests (P1-04 fix).
  * 5. Supports emergency kill-switch (`SKIP_WAITING` / `PURGE_ALL_CACHES` message).
  */
 
@@ -27,7 +28,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(SHELL_CACHE_NAME)
-      .then((cache) => cache.addAll(SHELL_URLS).catch(() => undefined))
+      .then((cache) => cache.addAll(SHELL_URLS))
       .then(() => self.skipWaiting()),
   );
 });
@@ -74,7 +75,18 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return;
+  const isSameOrigin = url.origin === self.location.origin;
+
+  // Cross-origin requests: only intercept `/assets/` when an external asset CDN is configured
+  // so opt-in offline map caches still work with CDN URLs (P1-04 fix).
+  if (!isSameOrigin) {
+    if (url.pathname.includes('/assets/')) {
+      event.respondWith(
+        caches.match(req).then((cached) => cached || fetch(req)),
+      );
+    }
+    return;
+  }
 
   // Navigation requests: Network-first with cached App Shell fallback.
   if (req.mode === 'navigate') {

@@ -11,6 +11,7 @@
  * (fcn_00454d91), screen themes that loop and remember the background track and its position for when the
  * screen closes (fcn_004549cf / fcn_00454bcc), and holiday music that holds for its days.
  */
+import { resolveCdnAssetUrl } from '../assets/offline-pwa';
 import { watch } from './watchdog';
 import { ASSETS } from './assets';
 import { CARD_LINES, EVENT_LINES, TOOL_LINES } from './lines';
@@ -221,7 +222,7 @@ class AudioEngine {
   private unlocked = false;
 
   private load(): Promise<void> {
-    this.loading ??= fetch(`${ASSETS}/audio/manifest.json`).then(r => (r.ok ? r.json() : null)).then(m => { this.manifest = m; }).catch(() => { this.manifest = null; });
+    this.loading ??= fetch(resolveCdnAssetUrl(`${ASSETS}/audio/manifest.json`)).then(r => (r.ok ? r.json() : null)).then(m => { this.manifest = m; }).catch(() => { this.manifest = null; });
     return this.loading;
   }
 
@@ -231,7 +232,7 @@ class AudioEngine {
   }
 
   private url(kind: Kind, id: number | string) {
-    return `${ASSETS}/audio/${kind}/${typeof id === 'number' ? String(id).padStart(4, '0') : id}.m4a`;
+    return resolveCdnAssetUrl(`${ASSETS}/audio/${kind}/${typeof id === 'number' ? String(id).padStart(4, '0') : id}.m4a`);
   }
 
   private has(kind: Kind, id: number | string): boolean {

@@ -237,8 +237,92 @@ export function verifyReconnectClaim(
 }
 
 /**
+ * Two-phase reconnect token rotation state machine (P1-02 fix).
+ * Prevents premature rotation of `confirmedToken` before the host acknowledges the new `tokenCommit`.
+ */
+export interface ReconnectTokenState {
+  /** Token currently committed on the host (used as `reconnectToken` proof until host confirms rotation). */
+  confirmedToken: string;
+  /** Peer ID currently registered on the host (`undefined` before first host confirmation). */
+  confirmedPeerId?: string;
+  /** Candidate next token whose `tokenCommit` was sent in `hi`, awaiting host acknowledgment. */
+  pendingToken?: string;
+  /** Candidate Peer ID used in the in-flight `hi` handshake. */
+  pendingPeerId?: string;
+}
+
+export function createReconnectTokenState(initialToken = generateReconnectToken()): ReconnectTokenState {
+  return { confirmedToken: initialToken };
+}
+
+/**
+ * Prepares a `hi` handshake without prematurely discarding `confirmedToken` (P1-02 fix).
+ * If a previous reconnect attempt dropped before host acknowledgment, `confirmedToken` is preserved
+ * so subsequent retries still prove ownership against the host's stored `tokenCommit`.
+ */
+export function prepareReconnectHandshake(
+  state: ReconnectTokenState,
+  currentPeerId: string,
+  explicitPrevPeerId?: string,
+): {
+  prev?: string;
+  reconnectToken?: string;
+  tokenCommit: string;
+} {
+  const prev = explicitPrevPeerId ?? state.confirmedPeerId;
+  const isReconnect = Boolean(prev);
+  if (!isReconnect) {
+    state.pendingPeerId = currentPeerId;
+    state.pendingToken = undefined;
+    return {
+      tokenCommit: commitReconnectToken(state.confirmedToken),
+    };
+  }
+  if (!state.pendingToken) {
+    state.pendingToken = generateReconnectToken();
+  }
+  state.pendingPeerId = currentPeerId;
+  return {
+    prev,
+    reconnectToken: state.confirmedToken,
+    tokenCommit: commitReconnectToken(state.pendingToken),
+  };
+}
+
+/**
+ * Commits the token rotation ONLY after the host acknowledges the peer in `lobby`
+ * with matching `tokenCommit` (P1-02 fix).
+ */
+export function confirmReconnectHandshake(
+  state: ReconnectTokenState,
+  ackedPeerId: string,
+  ackedTokenCommit?: string,
+): boolean {
+  if (!ackedPeerId || (state.pendingPeerId && ackedPeerId !== state.pendingPeerId)) {
+    return false;
+  }
+  if (state.pendingToken) {
+    const expectedCommit = commitReconnectToken(state.pendingToken);
+    if (!ackedTokenCommit || !constantTimeEqual(ackedTokenCommit, expectedCommit)) {
+      return false;
+    }
+    state.confirmedToken = state.pendingToken;
+    state.pendingToken = undefined;
+  } else if (ackedTokenCommit) {
+    const expectedCommit = commitReconnectToken(state.confirmedToken);
+    if (!constantTimeEqual(ackedTokenCommit, expectedCommit)) {
+      return false;
+    }
+  }
+  state.confirmedPeerId = ackedPeerId;
+  state.pendingPeerId = undefined;
+  return true;
+}
+
+/**
  * Verifies that an incoming `ans` lockstep action was sent by the peer who actually owns the seat
- * for question `seq` (P0-2 fix).
+ * for an ALREADY OPENED question `seq` (P0-2 & P1-01 fix).
+ * Rejects any unopened/future `seq` (`expectedSeats.get(seq) === undefined`) so peers cannot pre-inject future answers.
  */
 export function authorizeSeatAnswer(
   seats: Record<string, number> | undefined,
@@ -262,7 +346,10 @@ export function authorizeSeatAnswer(
     return { ok: false, reason: 'seat-mismatch' };
   }
   const expectedSeat = expectedSeats.get(seq);
-  if (expectedSeat !== undefined && expectedSeat !== ownedSeat) {
+  if (expectedSeat === undefined) {
+    return { ok: false, reason: 'unopened-question-seq' };
+  }
+  if (expectedSeat !== ownedSeat) {
     return { ok: false, reason: 'not-active-turn-seat' };
   }
   return { ok: true, seat: ownedSeat };
@@ -598,9 +685,11 @@ export class Room {
   private log: [unknown, boolean][] = [];
   private waiters = new Map<number, (v: unknown) => void>();
   private digests = new Map<number, number>();
-  /** Maps question `seq` -> expected player `seat` so the host rejects spoofed answers from other seats. */
+  /** Maps question `seq` -> expected player `seat` so the host rejects spoofed or premature answers. */
   private expectedSeats = new Map<number, number>();
-  private secretToken = generateReconnectToken();
+  /** Holds at most one unverified in-flight answer per `(peerId, seq)` when a guest's packet arrives slightly before host's `expectQuestionSeat(seq)`. */
+  private unverifiedAnswers = new Map<string, { peer: string; seq: number; v: unknown; seat?: number }>();
+  private tokenState = createReconnectTokenState();
   private closed = false;
   myId = '';
 
@@ -616,7 +705,8 @@ export class Room {
       if (peer) this.code = code;
     }
     if (!peer) throw new Error('無法建立房間（網路連不上）');
-    this.members = [named({ id: peer.id, ...this.me, tokenCommit: commitReconnectToken(this.secretToken) })];
+    this.tokenState.confirmedPeerId = peer.id;
+    this.members = [named({ id: peer.id, ...this.me, tokenCommit: commitReconnectToken(this.tokenState.confirmedToken) })];
     this.becomeHost(peer);
     return this.code;
   }
@@ -642,7 +732,13 @@ export class Room {
     this.host = true;
     this.toHost = null;
     this.myId = peer.id;
-    if (prev && prev !== peer.id) this.rename(prev, peer.id, commitReconnectToken(this.secretToken));
+    if (this.tokenState.pendingToken) {
+      this.tokenState.confirmedToken = this.tokenState.pendingToken;
+      this.tokenState.pendingToken = undefined;
+    }
+    this.tokenState.confirmedPeerId = peer.id;
+    this.tokenState.pendingPeerId = undefined;
+    if (prev && prev !== peer.id) this.rename(prev, peer.id, commitReconnectToken(this.tokenState.confirmedToken));
     const me = this.members.find(x => x.id === this.myId);
     if (me) this.members = [me, ...this.members.filter(x => x !== me)];
     peer.on('connection', c => this.guest(c));
@@ -706,13 +802,7 @@ export class Room {
       if (checked.ok) this.fromHost(checked.msg);
     });
     c.on('close', () => { if (this.toHost === c) { this.toHost = null; if (!this.closed && !this.host) void this.rejoin(); } });
-    const isReconnecting = Boolean(prev || this.started || this.members.some(x => x.id === this.myId));
-    let reconnectToken: string | undefined;
-    if (isReconnecting) {
-      reconnectToken = this.secretToken;
-      this.secretToken = generateReconnectToken();
-    }
-    const tokenCommit = commitReconnectToken(this.secretToken);
+    const hs = prepareReconnectHandshake(this.tokenState, this.myId, prev);
     c.send({
       t: 'hi',
       name: this.me.name,
@@ -720,11 +810,11 @@ export class Room {
       region: this.me.region,
       nick: this.me.nick,
       have: this.started ? this.log.length : undefined,
-      prev,
+      prev: hs.prev,
       proto: PARTY_PROTOCOL_VERSION,
       rules: PARTY_RULES_VERSION,
-      tokenCommit,
-      ...(reconnectToken ? { reconnectToken } : {}),
+      tokenCommit: hs.tokenCommit,
+      ...(hs.reconnectToken ? { reconnectToken: hs.reconnectToken } : {}),
     } satisfies Msg);
     for (const w of this.connWaiters.splice(0)) w();
     return true;
@@ -813,9 +903,9 @@ export class Room {
         const x = this.members.find(y => y.id === c.peer);
         if (x && !this.started) { x.character = this.freeCharacter(m.character, c.peer); x.nick = m.nick; named(x); this.lobbyChanged(); }
       } else if (m.t === 'ans') {
-        // Strictly verify that `c.peer` is a room member AND owns the seat expected to answer `m.seq` (P0-2 fix).
+        // Strictly verify that `c.peer` is a room member AND owns the seat expected to answer `m.seq` (P0-2 & P1-01 fix).
         if (!this.members.some(y => y.id === c.peer)) return;
-        if (m.seq > this.log.length + 64) return;
+        if (m.seq < this.log.length && this.log[m.seq] !== undefined) return;
         const auth = authorizeSeatAnswer(
           this.started?.seats,
           this.kickedSeats,
@@ -824,7 +914,19 @@ export class Room {
           m.seq,
           m.seat,
         );
-        if (!auth.ok) return;
+        if (!auth.ok) {
+          // If the active seat's packet arrived slightly before the host reached `expectQuestionSeat(m.seq)` (within +4 of current log),
+          // stage it in an isolated unverified buffer keyed by `(peer, seq)` without touching `this.log` or broadcasting.
+          if (auth.reason === 'unopened-question-seq' && m.seq >= this.log.length && m.seq <= this.log.length + 4) {
+            this.unverifiedAnswers.set(`${c.peer}:${m.seq}`, {
+              peer: c.peer,
+              seq: m.seq,
+              v: m.u ? undefined : m.v,
+              seat: m.seat,
+            });
+          }
+          return;
+        }
         this.record(m.seq, m.u ? undefined : m.v, true);
       } else if (m.t === 'chat') {
         const sender = this.members.find(y => y.id === c.peer);
@@ -874,7 +976,17 @@ export class Room {
   }
 
   private fromHost(m: Msg) {
-    if (m.t === 'lobby') { this.members = m.members.map(x => named({ ...x })); this.map = m.map; this.shared = m.shared; this.onLobby(); this.onVotes(); }
+    if (m.t === 'lobby') {
+      this.members = m.members.map(x => named({ ...x }));
+      const meInLobby = this.members.find(x => x.id === this.myId);
+      if (meInLobby) {
+        confirmReconnectHandshake(this.tokenState, this.myId, meInLobby.tokenCommit);
+      }
+      this.map = m.map;
+      this.shared = m.shared;
+      this.onLobby();
+      this.onVotes();
+    }
     else if (m.t === 'start') { this.begin(m.start); }
     else if (m.t === 'ans') this.record(m.seq, m.u ? undefined : m.v, false);
     else if (m.t === 'log') {
@@ -915,10 +1027,27 @@ export class Room {
     this.onStart(s);
   }
 
-  /** Registers which player seat is expected to answer lockstep question `seq`. */
+  /** Registers which player seat is expected to answer lockstep question `seq` and flushes any verified staged answer (P1-01). */
   expectQuestionSeat(seq: number, seat: number): void {
     if (Number.isInteger(seq) && seq >= 0 && Number.isInteger(seat) && seat >= 0) {
       this.expectedSeats.set(seq, seat);
+      if (this.host) {
+        for (const [key, staged] of this.unverifiedAnswers) {
+          if (staged.seq !== seq) continue;
+          this.unverifiedAnswers.delete(key);
+          const auth = authorizeSeatAnswer(
+            this.started?.seats,
+            this.kickedSeats,
+            this.expectedSeats,
+            staged.peer,
+            seq,
+            staged.seat,
+          );
+          if (auth.ok) {
+            this.record(seq, staged.v, true);
+          }
+        }
+      }
     }
   }
 

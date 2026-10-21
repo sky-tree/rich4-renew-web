@@ -4,6 +4,7 @@
  * preview under everything and, when the view is close enough to need more, only the tiles it shows, loaded on
  * demand and dropped when far away, so a phone never holds the whole high-resolution picture.
  */
+import { resolveCdnAssetUrl } from '../assets/offline-pwa';
 import { ASSETS } from './assets';
 import { decodeImage, releasePic, type Pic } from './decode';
 import { memTier } from './mem-tier';
@@ -35,7 +36,7 @@ interface Index { maps: Record<string, string[]> }
 let index: Promise<Index> | null = null;
 /** Which maps have which styles (ground/index.json); empty when no redrawn grounds are installed. */
 export function groundIndex(): Promise<Index> {
-  index ??= fetch(`${ASSETS}/ground/index.json`).then(r => (r.ok ? r.json() as Promise<Index> : { maps: {} }), () => ({ maps: {} }));
+  index ??= fetch(resolveCdnAssetUrl(`${ASSETS}/ground/index.json`)).then(r => (r.ok ? r.json() as Promise<Index> : { maps: {} }), () => ({ maps: {} }));
   return index;
 }
 /** Styles redrawn for a map (without the original). */
@@ -102,7 +103,7 @@ export class TiledGround {
     if (!style || !(await groundStylesFor(mapId)).includes(style)) return null;
     const base = `${ASSETS}/ground/${mapId}/${style}`;
     try {
-      const r = await fetch(`${base}/manifest.json`);
+      const r = await fetch(resolveCdnAssetUrl(`${base}/manifest.json`));
       if (!r.ok) return null;
       const g = new TiledGround(style, base, await r.json() as Manifest);
       // The preview is the map's size at 1×; a low-memory device holds it smaller (a 3456 map's is 48 MB at 1×).

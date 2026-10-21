@@ -6,7 +6,7 @@
 
 | 阶段 | 优先级 | 核心产物 | 前置依赖 | 代码实现与本地测试 | 云端部署与多设备实机验收 |
 | --- | --- | --- | --- | --- | --- |
-| M0 开发基线与合规闸门 | P0 | 跑通现有代码检查、清单、许可方案 | Fork 已完成 | **已完成**（55 文件 / 521 测试） | 不适用（本地基线） |
+| M0 开发基线与合规闸门 | P0 | 跑通现有代码检查、清单、许可方案 | Fork 已完成 | **已完成**（55 文件 / 529 测试） | 不适用（本地基线） |
 | M1 纯 Web 化 | P0 | 无 Capacitor/Electron 依赖的 Web 构建与浏览器可玩版本 | M0 | **已完成**（手动分包主 JS ~325 KB） | **待云端实机回归** |
 | M2 网页资源分层 | P0/P1 | 资源报告、真实内容 SHA-256、分包清单、缺失恢复 | M1 | **已完成**（36,109 文件真实哈希） | **待云端实测首屏耗时** |
 | M3 小范围 Web 测试发布 | P0 | 严格素材校验、不可变发布、Nginx 配置、回滚与 CI | M1+M2+授权 | **已完成**（含 GitHub Actions CI） | **待部署至私人云端 Nginx** |
@@ -90,7 +90,7 @@
 - [x] M6-02 可选地图离线包按需下载/进度回调/取消回滚/删除（`downloadMapOfflinePack` / `removeMapOfflinePack` / `listCachedOfflineMaps` / `purgeStaleOfflineCaches`）、绑定版本与内容哈希 `@<hash>`、存储配额检测（`estimateStorageQuota` / `canFitOfflinePack`）并接入新游戏选图界面「離線快取」按钮（`src/assets/offline-pwa.ts`、`src/ui/main.ts`）。
 - [x] M6-03 支持可选 CDN/对象存储静态资源基础路径解析（`VITE_RICH4_ASSET_CDN` / `window.__RICH4_ASSET_CDN__` / `resolveCdnAssetUrl`），并统一接入 `AssetLoader`、`fetchJson()`、`absAssetUrl()` 与 `image()`。
 - [x] M6-04 建立安全、匿名的本地异常/性能诊断环形缓冲区（`TelemetryRingBuffer` / `window.__rich4Diag`），彻底抹除 `turn:...` URI 内嵌凭据、密码、存档数据与房间聊天内容，并支持结构化白名单指标。
-- [x] M6-05 完成 M0–M6 全量回归验证及 2026-10-21 代码审核报告全部 P0/P1/P2 问题修复（`55 passed` 测试文件 / `521 passed` 测试用例，`verify:web` 严格发布校验 9 项全过）。
+- [x] M6-05 完成 M0–M6 全量回归验证及两轮代码审核报告全部 P0/P1/P2 问题修复（`55 passed` 测试文件 / `529 passed` 测试用例，`verify:web` 严格发布校验 13 项检查 + 36,109 个文件全量字节 SHA-256 校验全部通过）。
 
 ## 推荐的 PR 拆分
 

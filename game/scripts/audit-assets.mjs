@@ -1,8 +1,8 @@
 // Audits all game asset manifests, verifies every referenced file exists on disk,
 // classifies assets into Web packs (`shell`, `core`, `map-<id>`, `ground-<id>-<style>`, `optional`),
-// and writes `web-packs.json` (M2-01, M2-02, M2-04, M2-05).
+// and writes `web-packs.json` (M2-01, M2-02, M2-04, M2-05, P1-6, P1-04, P1-05).
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -247,6 +247,9 @@ export function auditAssets(assetsDir, opts = {}) {
       fileCount: p.fileCount,
       bytes: p.bytes,
       sha256,
+      // Include explicit file lists for `shell` and `map-*` packs so the runtime offline pack downloader
+      // caches the complete dependency closure for any selected map and verifies its pack content hash (P1-04).
+      ...(p.category === 'shell' || p.category === 'map' ? { files: p.files } : {}),
     };
     categories[p.category].fileCount += p.fileCount;
     categories[p.category].bytes += p.bytes;
@@ -275,10 +278,13 @@ export function auditAssets(assetsDir, opts = {}) {
 }
 
 /**
- * Verifies on-disk asset byte contents against the SHA-256 hashes recorded in `web-packs.json` (P1-6 fix).
- * Detects silent file corruption even when file byte size remains unchanged.
+ * Verifies on-disk asset byte contents against the SHA-256 hashes recorded in `web-packs.json` (P1-6 & P1-05 fix).
+ * 1. Verifies every file in `criticalFiles` (all JSON manifests and shell assets).
+ * 2. When `fullPackAudit` is enabled and a full asset directory is present, recomputes the real-byte SHA-256
+ *    across all 36,109 referenced files (every sprite, ground tile, and audio file) and compares each pack's
+ *    `sha256`, `fileCount`, and `bytes` against `packManifest.packs`.
  */
-export function verifyAssetIntegrity(assetsDir, packManifest) {
+export function verifyAssetIntegrity(assetsDir, packManifest, options = {}) {
   const src = resolve(assetsDir);
   const entries = Object.entries(packManifest?.criticalFiles ?? {});
   if (entries.length === 0) {
@@ -304,6 +310,35 @@ export function verifyAssetIntegrity(assetsDir, packManifest) {
     }
     verifiedCount++;
   }
+
+  const fullPackAudit = options.fullPackAudit ?? true;
+  const expectedPacks = packManifest?.packs && typeof packManifest.packs === 'object' ? Object.entries(packManifest.packs) : [];
+  if (fullPackAudit && expectedPacks.length > 0 && existsSync(join(src, 'orig/manifest.json'))) {
+    const live = auditAssets(src);
+    if (!live.skipped) {
+      for (const m of live.missing) {
+        corrupted.push(`${m.rel} [${m.packId}]: missing`);
+      }
+      for (const [packId, expPack] of expectedPacks) {
+        const actPack = live.manifest.packs[packId];
+        if (!actPack) {
+          corrupted.push(`pack ${packId}: missing from live audit`);
+          continue;
+        }
+        if (actPack.fileCount !== expPack.fileCount || actPack.bytes !== expPack.bytes) {
+          corrupted.push(
+            `pack ${packId}: count/bytes mismatch (expected ${expPack.fileCount} files / ${expPack.bytes} B, got ${actPack.fileCount} files / ${actPack.bytes} B)`,
+          );
+          continue;
+        }
+        if (actPack.sha256 !== expPack.sha256) {
+          corrupted.push(`pack ${packId}: content sha256 mismatch (expected ${expPack.sha256}, got ${actPack.sha256})`);
+        }
+      }
+      verifiedCount = Math.max(verifiedCount, live.manifest.totalFiles - live.missing.length);
+    }
+  }
+
   return { ok: corrupted.length === 0, verifiedCount, corrupted };
 }
 

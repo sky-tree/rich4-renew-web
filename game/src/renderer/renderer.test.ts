@@ -107,13 +107,21 @@ describe('WebGLBoardRenderer lifecycle, LRU texture eviction, context loss & fal
       texParameteri: vi.fn(),
       texImage2D: vi.fn(),
       deleteTexture: vi.fn((t: unknown) => deleted.push(t)),
+      readPixels: vi.fn((_x: number, _y: number, _w: number, _h: number, _fmt: number, _type: number, dst: Uint8Array) => {
+        dst[0] = 11;
+        dst[1] = 36;
+        dst[2] = 39;
+        dst[3] = 255;
+      }),
     };
 
+    const createdCanvasStyle: Record<string, string> = {};
     vi.stubGlobal('document', {
       createElement: () => ({
         className: '',
         width: 0,
         height: 0,
+        style: createdCanvasStyle,
         addEventListener: (ev: string, fn: (e: Event) => void) => listeners.set(ev, fn),
         removeEventListener: (ev: string) => listeners.delete(ev),
         getContext: (kind: string) => (kind === 'webgl2' ? mockGL : null),
@@ -148,8 +156,12 @@ describe('WebGLBoardRenderer lifecycle, LRU texture eviction, context loss & fal
     };
 
     renderer.render(scene, 0);
+    expect(createdCanvasStyle.position).toBe('absolute');
+    expect(createdCanvasStyle.inset).toBe('0');
+    expect(createdCanvasStyle.pointerEvents).toBe('none');
     expect(renderer.textureCount()).toBe(16);
     expect(renderer.drawCallCount()).toBe(21); // 1 isometric ground quad + 20 depth-sorted sprite quads
+    expect(renderer.sampleCenterPixel()).toEqual([11, 36, 39, 255]);
     expect(mockGL.useProgram).toHaveBeenCalled();
     expect(mockGL.drawArrays).toHaveBeenCalledTimes(21);
     expect(deleted.length).toBeGreaterThan(0);

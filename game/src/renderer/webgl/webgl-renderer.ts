@@ -93,9 +93,37 @@ export class WebGLBoardRenderer implements BoardRenderer {
     return this.lastDrawCallCount;
   }
 
+  /**
+   * Reads the RGBA pixel at the center of the WebGL framebuffer for A/B pixel regression verification (P1-03 & P2).
+   */
+  sampleCenterPixel(): [number, number, number, number] | null {
+    const gl = this.gl;
+    const c = this.canvas;
+    if (!gl || !c || this.contextLost || typeof gl.readPixels !== 'function') return null;
+    const x = Math.max(0, Math.floor((c.width || 1) / 2));
+    const y = Math.max(0, Math.floor((c.height || 1) / 2));
+    const out = new Uint8Array(4);
+    try {
+      gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, out);
+      return [out[0], out[1], out[2], out[3]];
+    } catch {
+      return null;
+    }
+  }
+
   async mount(target: HTMLElement): Promise<void> {
     const c = document.createElement('canvas');
     c.className = 'board-renderer webgl-backend';
+    // Ensure experimental WebGL canvas overlays `.stage` directly instead of flowing below `.board` (fixes P1-03).
+    if (c.style) {
+      c.style.position = 'absolute';
+      c.style.inset = '0';
+      c.style.width = '100%';
+      c.style.height = '100%';
+      c.style.display = 'block';
+      c.style.pointerEvents = 'none';
+      c.style.zIndex = '1';
+    }
     c.addEventListener('webglcontextlost', this.handleContextLost, false);
     c.addEventListener('webglcontextrestored', this.handleContextRestored, false);
     const gl = (c.getContext('webgl2', { alpha: false, antialias: true }) ??

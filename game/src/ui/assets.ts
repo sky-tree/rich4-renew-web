@@ -26,7 +26,56 @@ export function mapOfflineUrls(entry: MapInfo): string[] {
   const base = entry.id >= 1000 ? `${ASSETS}/maps/custom/${entry.id}` : `${ASSETS}/maps/map-${entry.id}`;
   const dataUrl = entry.data ? `${ASSETS}/maps/${entry.data}` : `${base}.json`;
   const imageUrl = entry.image ? `${ASSETS}/maps/${entry.image}` : `${base}.png`;
-  return [entry.thumbnail, dataUrl, imageUrl].filter(Boolean);
+  return [entry.thumbnail, dataUrl, imageUrl].filter(Boolean).map(u => resolveCdnAssetUrl(u));
+}
+
+interface WebPacksManifest {
+  packs?: Record<
+    string,
+    {
+      id: string;
+      category: string;
+      fileCount: number;
+      bytes: number;
+      sha256: string;
+      files?: string[];
+    }
+  >;
+}
+
+let cachedWebPacks: Promise<WebPacksManifest | null> | null = null;
+
+/**
+ * Resolves the full dependency closure (map JSON, background, thumbnail, map-specific sprites, and shell manifests)
+ * and content SHA-256 hash for a map's opt-in offline pack from `web-packs.json` (P1-04 & P2 fix).
+ */
+export async function resolveMapOfflinePackSpec(
+  entry: MapInfo,
+): Promise<{ urls: string[]; contentHash?: string; bytes?: number }> {
+  const baseUrls = mapOfflineUrls(entry);
+  try {
+    cachedWebPacks ??= json<WebPacksManifest>(`${ASSETS}/web-packs.json`).catch(() => null);
+    const wp = await cachedWebPacks;
+    const mapPack = wp?.packs?.[`map-${entry.id}`];
+    const shellPack = wp?.packs?.shell;
+    if (mapPack?.files?.length) {
+      const urlSet = new Set<string>(baseUrls);
+      for (const rel of shellPack?.files ?? []) {
+        urlSet.add(resolveCdnAssetUrl(`${ASSETS}/${rel}`));
+      }
+      for (const rel of mapPack.files) {
+        urlSet.add(resolveCdnAssetUrl(`${ASSETS}/${rel}`));
+      }
+      return {
+        urls: [...urlSet],
+        contentHash: mapPack.sha256,
+        bytes: mapPack.bytes + (shellPack?.bytes ?? 0),
+      };
+    }
+  } catch {
+    /* fallback to baseUrls */
+  }
+  return { urls: baseUrls };
 }
 
 /**

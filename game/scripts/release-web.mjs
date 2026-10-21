@@ -1,9 +1,9 @@
-// Atomic release deployment and instant rollback manager for `/srv/www/apps/rich4` (M3-02, M3-04).
+// Atomic release deployment and instant rollback manager for `/srv/www/apps/rich4` (M3-02, M3-04, P1-2, P1-05).
 // Supports both production VPS directories and local staging/test directories.
 import { cpSync, existsSync, mkdirSync, readFileSync, readlinkSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { generateReleaseManifest } from './verify-web.mjs';
+import { generateReleaseManifest, runHttpSmokeTestSync } from './verify-web.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -56,18 +56,30 @@ export function validateReleaseId(releaseId, releasesDir) {
 /**
  * Deploys a built `distDir` into `<appsRoot>/rich4-releases/<releaseId>` and atomically switches
  * `<appsRoot>/rich4` to point to the new release.
- * Refuses to overwrite an existing release directory to preserve immutable release guarantees (P1-2 fix).
+ *
+ * Enforces an unskippable release pipeline (P1-2 & P1-05 fix):
+ * 1. Validate `releaseId` format and refuse to overwrite an existing release directory.
+ * 2. Generate/verify `release-manifest.json` and bundle references.
+ * 3. Run pre-deploy verification (`runHttpSmokeTestSync`, which by default enforces full asset closure
+ *    and full-file SHA-256 byte integrity unless `codeOnly: true` is explicitly passed for unit test fixtures).
+ * 4. Copy to immutable release directory `<appsRoot>/rich4-releases/<releaseId>`.
+ * 5. Atomically switch `<appsRoot>/rich4` symlink.
+ * 6. Run post-switch HTTP smoke test against the live `<appsRoot>/rich4` symlink.
  */
-export function deployRelease({ appsRoot, distDir, releaseId }) {
+export function deployRelease({
+  appsRoot,
+  distDir,
+  releaseId,
+  publicAssetsDir = join(root, 'public/assets'),
+  codeOnly = false,
+}) {
   const baseRoot = resolve(appsRoot);
   const srcDist = resolve(distDir);
   const releasesDir = join(baseRoot, 'rich4-releases');
   mkdirSync(releasesDir, { recursive: true });
 
-  const manifestPath = join(srcDist, 'release-manifest.json');
-  const manifest = existsSync(manifestPath)
-    ? JSON.parse(readFileSync(manifestPath, 'utf8'))
-    : generateReleaseManifest(srcDist, '/rich4/');
+  // Always regenerate & verify release-manifest.json against index.html references
+  const manifest = generateReleaseManifest(srcDist, '/rich4/');
 
   const id = releaseId || `${manifest.buildId}-${Date.now()}`;
   const targetDir = validateReleaseId(id, releasesDir);
@@ -76,10 +88,21 @@ export function deployRelease({ appsRoot, distDir, releaseId }) {
       `Refusing to overwrite existing immutable release '${id}' at ${targetDir}. Use a new releaseId or roll back instead.`,
     );
   }
+
+  // Pre-deploy strict verification (asset closure + full-file SHA-256 byte integrity + bundle checks)
+  const preChecks = runHttpSmokeTestSync(srcDist, publicAssetsDir, '/rich4/', {
+    requireAssets: !codeOnly,
+  });
+
   cpSync(srcDist, targetDir, { recursive: true });
 
   const activeLink = join(baseRoot, 'rich4');
   atomicSwitchSymlink(targetDir, activeLink);
+
+  // Post-switch live symlink smoke verification
+  const postChecks = runHttpSmokeTestSync(activeLink, publicAssetsDir, '/rich4/', {
+    requireAssets: !codeOnly,
+  });
 
   const history = readHistory(releasesDir);
   const previous = history.current;
@@ -90,7 +113,7 @@ export function deployRelease({ appsRoot, distDir, releaseId }) {
   ].slice(0, 20);
   writeHistory(releasesDir, history);
 
-  return { id, previous, activeLink, targetDir, manifest };
+  return { id, previous, activeLink, targetDir, manifest, preChecks, postChecks };
 }
 
 /**
@@ -129,6 +152,7 @@ export function rollbackRelease({ appsRoot, toReleaseId }) {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
   const action = args[0] || 'deploy';
+  const codeOnly = args.includes('--code-only');
   let appsRoot = process.env.RICH4_APPS_ROOT || join(root, 'release/www-apps');
   let distDir = join(root, 'dist');
   let id = '';
@@ -140,8 +164,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   }
 
   if (action === 'deploy') {
-    const r = deployRelease({ appsRoot, distDir, releaseId: id || undefined });
-    console.log(`[release-web] Deployed '${r.id}' (previous: ${r.previous ?? 'none'}) -> ${readlinkSync(r.activeLink)}`);
+    const r = deployRelease({ appsRoot, distDir, releaseId: id || undefined, codeOnly });
+    console.log(
+      `[release-web] Verified (${r.postChecks.length} checks) and deployed '${r.id}' (previous: ${r.previous ?? 'none'}) -> ${readlinkSync(r.activeLink)}`,
+    );
   } else if (action === 'rollback') {
     const r = rollbackRelease({ appsRoot, toReleaseId: id || undefined });
     console.log(`[release-web] Rolled back from '${r.rolledFrom}' to '${r.current}' -> ${readlinkSync(r.activeLink)}`);

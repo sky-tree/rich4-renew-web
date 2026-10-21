@@ -170,6 +170,7 @@ export class BoardView {
               webglTextures: this.expRenderer.textureCount(),
               webglDrawCalls: this.expRenderer.drawCallCount(),
               webglContextLost: this.expRenderer.isContextLost(),
+              webglCenterPixel: this.expRenderer.sampleCenterPixel(),
             }
           : {}),
       });
@@ -1201,7 +1202,7 @@ export class BoardView {
         anchorX: f.ax,
         anchorY: f.ay,
         scale: f.scale,
-        layer: 0,
+        layer: this.sceneSprites.length,
       });
     }
   }

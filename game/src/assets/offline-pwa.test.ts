@@ -14,6 +14,7 @@ import {
   TelemetryRingBuffer,
   unregisterAllServiceWorkers,
 } from './offline-pwa';
+import { resolveMapOfflinePackSpec } from '../ui/assets';
 
 function createMemoryCacheStorage(): CacheStorage {
   const store = new Map<string, Map<string, Response>>();
@@ -162,12 +163,61 @@ describe('offline-pwa (M6, P1-5, P2-1, P2-2)', () => {
     expect(await cachesImpl.keys()).toEqual(['other-app-cache-v1']);
   });
 
-  it('resolves optional CDN base URL for static assets and falls back to local path', () => {
+  it('resolves optional CDN base URL for static assets and full map offline pack closure from web-packs.json (P1-04 & P2)', async () => {
     expect(resolveCdnAssetUrl('assets/maps/map-0.json')).toBe('assets/maps/map-0.json');
     setAssetCdnBase('https://cdn.example.com/rich4-static/');
     expect(resolveCdnAssetUrl('./assets/maps/map-0.json')).toBe(
       'https://cdn.example.com/rich4-static/assets/maps/map-0.json',
     );
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            packs: {
+              shell: {
+                id: 'shell',
+                category: 'shell',
+                fileCount: 2,
+                bytes: 1024,
+                sha256: '1111222233334444',
+                files: ['maps/maps.json', 'orig/manifest.json'],
+              },
+              'map-8': {
+                id: 'map-8',
+                category: 'map',
+                fileCount: 4,
+                bytes: 20480,
+                sha256: 'aabbccddeeff001122334455',
+                files: [
+                  'maps/remake/kabukicho.json',
+                  'maps/remake/kabukicho.webp',
+                  'maps/remake/sprites/1901/frames.json',
+                  'maps/remake/sprites/1901/frame-000.webp',
+                ],
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const spec = await resolveMapOfflinePackSpec({
+      id: 8,
+      name: '歌舞伎町',
+      thumbnail: './assets/maps/remake/thumbs/kabukicho.webp',
+      custom: true,
+      kind: 'custom',
+      data: 'remake/kabukicho.json',
+      image: 'remake/kabukicho.webp',
+    });
+    expect(spec.contentHash).toBe('aabbccddeeff001122334455');
+    expect(spec.bytes).toBe(20480 + 1024);
+    expect(spec.urls.length).toBeGreaterThanOrEqual(6);
+    expect(spec.urls.some(u => u.includes('sprites/1901/frame-000.webp'))).toBe(true);
+    expect(spec.urls.every(u => u.startsWith('https://cdn.example.com/rich4-static/assets/'))).toBe(true);
   });
 
   it('completely redacts TURN URLs with embedded credentials, chat texts, and supports structured metrics (P2-1)', () => {
