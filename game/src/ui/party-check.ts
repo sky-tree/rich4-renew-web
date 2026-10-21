@@ -4,7 +4,7 @@
  * (a STUN address or the TURN relay). Each failure says plainly that this phone cannot play with others now.
  */
 import Peer from 'peerjs';
-import { buildPeerOptions, resolvePartyNetConfig } from './party-net';
+import { buildPeerOptions, resolvePartyNetConfig, refreshPartyNetConfig } from './party-net';
 
 export type NetCheck =
   | { ok: true; note?: string }
@@ -49,6 +49,9 @@ export async function checkNetwork(): Promise<NetCheck> {
     return { ok: false, title: '沒有網路', text: '這支手機目前沒有連上網路，\n無法進行多人對戰。\n請開啟 Wi-Fi 或行動數據後再試一次。', retry: true };
   if (typeof RTCPeerConnection === 'undefined')
     return { ok: false, title: '不支援聯機', text: '這支手機（或系統版本）不支援聯機功能，\n無法進行多人對戰。\n請更新系統後再試。', retry: false };
+  try { await refreshPartyNetConfig(); } catch {
+    return { ok: false, title: '聯機設定暫時無法載入', text: '請確認網路與登入狀態，再重新檢查。', retry: true };
+  }
   const [server, kinds] = await Promise.all([signalling(), candidates()]);
   if (!server)
     return { ok: false, title: '連不上聯機伺服器', text: '這支手機現在連不上聯機伺服器，\n暫時無法進行多人對戰。\n請確認網路正常（公司、學校的網路可能擋住聯機），\n或換個網路再試。', retry: true };

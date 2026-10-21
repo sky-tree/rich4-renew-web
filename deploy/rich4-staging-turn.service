@@ -1,0 +1,18 @@
+[Unit]
+Description=Rich4 staging authenticated rate-limited TURN relay
+After=network.target
+
+[Service]
+User=devspace
+Group=devspace
+WorkingDirectory=/srv/devspace/repos/rich4-runtime/control
+ExecStart=/usr/bin/turnserver -c /srv/devspace/repos/rich4-runtime/state/turn-staging.conf
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

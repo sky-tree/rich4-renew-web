@@ -34,6 +34,12 @@ export default defineConfig({
   plugins: [
     {
       name: 'rich4-emit-pwa-shell',
+      transformIndexHtml() {
+        const endpoint = process.env.RICH4_PARTY_CONFIG;
+        if (!endpoint) return;
+        if (!/^\/(?!\/)/.test(endpoint)) throw new Error('RICH4_PARTY_CONFIG must be an origin-relative path');
+        return [{ tag: 'meta', attrs: { name: 'rich4-party-config', content: endpoint }, injectTo: 'head' as const }];
+      },
       writeBundle(options, bundle) {
         const outDir = options.dir || 'dist';
         // Ensure manifest.webmanifest and app shell icons are present even when RICH4_NO_ASSETS=1 skips public/ copy

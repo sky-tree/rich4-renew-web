@@ -363,6 +363,7 @@ export interface PartyNetConfig {
     secure?: boolean;
   };
   iceServers?: RTCIceServer[];
+  iceTransportPolicy?: RTCIceTransportPolicy;
 }
 
 const NET_CONFIG_KEY = 'rich4.netConfig';
@@ -371,14 +372,37 @@ const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
 ];
 
 let runtimeNetConfig: PartyNetConfig | null = null;
+let fetchedConfigUntil = 0;
+let fetchingConfig: Promise<void> | null = null;
+
+/** Optional private staging endpoint; short-lived relay credentials stay in memory. */
+export async function refreshPartyNetConfig(): Promise<void> {
+  const path = typeof document !== 'undefined'
+    ? document.querySelector<HTMLMetaElement>('meta[name="rich4-party-config"]')?.content : undefined;
+  if (!path || Date.now() < fetchedConfigUntil) return;
+  if (fetchingConfig) return fetchingConfig;
+  fetchingConfig = (async () => {
+    const url = new URL(path, location.href);
+    if (url.origin !== location.origin) throw new Error('Party configuration must use the same origin');
+    const response = await fetch(url.href, { cache: 'no-store', credentials: 'same-origin', signal: AbortSignal.timeout(5000) });
+    if (!response.ok) throw new Error('Party configuration unavailable');
+    const cfg = await response.json() as PartyNetConfig & { expiresAt: number };
+    if (!Number.isFinite(cfg.expiresAt) || cfg.expiresAt < Date.now() + 60000 || cfg.expiresAt > Date.now() + 86400000 ||
+      !Array.isArray(cfg.iceServers) || !cfg.iceServers.length) throw new Error('Invalid or expired party configuration');
+    setPartyNetConfig({ ...cfg, ...(new URL(location.href).searchParams.get('relay') === '1' ? { iceTransportPolicy: 'relay' as const } : {}) });
+    fetchedConfigUntil = cfg.expiresAt - 60000;
+  })();
+  try { await fetchingConfig; } finally { fetchingConfig = null; }
+}
 
 /** Sets or overrides the runtime PeerJS / STUN / ephemeral TURN configuration (M5-01, M5-02). */
 export function setPartyNetConfig(cfg: PartyNetConfig | null): void {
   runtimeNetConfig = cfg;
+  if (!cfg) fetchedConfigUntil = 0;
 }
 
 /** Resolves the active PeerJS & ICE configuration without any hardcoded long-lived TURN credentials. */
-export function resolvePartyNetConfig(): { iceServers: RTCIceServer[]; peerServer?: PartyNetConfig['peerServer'] } {
+export function resolvePartyNetConfig(): { iceServers: RTCIceServer[]; peerServer?: PartyNetConfig['peerServer']; iceTransportPolicy?: RTCIceTransportPolicy } {
   let merged: PartyNetConfig = {};
   try {
     const winCfg = (typeof window !== 'undefined' ? (window as unknown as { __RICH4_NET_CONFIG__?: PartyNetConfig }).__RICH4_NET_CONFIG__ : undefined);
@@ -395,7 +419,7 @@ export function resolvePartyNetConfig(): { iceServers: RTCIceServer[]; peerServe
   const iceServers = Array.isArray(merged.iceServers) && merged.iceServers.length > 0
     ? merged.iceServers
     : DEFAULT_ICE_SERVERS;
-  return { iceServers, peerServer: merged.peerServer };
+  return { iceServers, peerServer: merged.peerServer, iceTransportPolicy: merged.iceTransportPolicy };
 }
 
 export const ICE_SERVERS: RTCIceServer[] = DEFAULT_ICE_SERVERS;
@@ -405,7 +429,7 @@ export function buildPeerOptions() {
   return {
     debug: 0,
     ...(cfg.peerServer ?? {}),
-    config: { iceServers: cfg.iceServers },
+    config: { iceServers: cfg.iceServers, ...(cfg.iceTransportPolicy ? { iceTransportPolicy: cfg.iceTransportPolicy } : {}) },
   };
 }
 
@@ -516,7 +540,8 @@ export function validateIncomingMsg(
 }
 
 /** A PeerJS peer with a given id, or null when the id is taken (another phone has it). */
-function open(id?: string): Promise<Peer | null> {
+async function open(id?: string): Promise<Peer | null> {
+  await refreshPartyNetConfig();
   return new Promise(resolve => {
     const opts = buildPeerOptions();
     const p = id ? new Peer(id, opts) : new Peer(opts);
@@ -769,7 +794,10 @@ export class Room {
     const peer = await open();
     if (!peer) throw new Error('網路連不上');
     this.asGuest(peer);
-    if (!(await this.reach())) throw new Error('連不上這個房間\n（房間碼不對，或兩邊的網路無法直接連線：可以試試連同一個 Wi-Fi）');
+    if (!(await this.reach())) {
+      this.close();
+      throw new Error('房主尚未確認加入\n請確認雙方版本與網路後再試一次');
+    }
   }
 
   private asGuest(peer: Peer) {
@@ -797,25 +825,36 @@ export class Room {
     const c = this.peer && await connect(this.peer, roomId(this.code));
     if (!c) return false;
     this.toHost = c;
+    let acknowledge: (accepted: boolean) => void = () => {};
+    const acknowledged = new Promise<boolean>(resolve => { acknowledge = resolve; });
+    const timer = setTimeout(() => acknowledge(false), 8000);
     c.on('data', d => {
       const checked = validateIncomingMsg(d);
-      if (checked.ok) this.fromHost(checked.msg);
+      if (checked.ok) {
+        const m = checked.msg;
+        this.fromHost(m);
+        if (m.t === 'lobby' && m.members.some(member => member.id === this.myId) || m.t === 'log' && this.started) acknowledge(true);
+        if (m.t === 'bye') acknowledge(false);
+      }
     });
-    c.on('close', () => { if (this.toHost === c) { this.toHost = null; if (!this.closed && !this.host) void this.rejoin(); } });
+    c.on('close', () => { acknowledge(false); if (this.toHost === c) { this.toHost = null; if (!this.closed && !this.host) void this.rejoin(); } });
     const hs = prepareReconnectHandshake(this.tokenState, this.myId, prev);
     c.send({
       t: 'hi',
       name: this.me.name,
       character: this.me.character,
-      region: this.me.region,
-      nick: this.me.nick,
-      have: this.started ? this.log.length : undefined,
-      prev: hs.prev,
+      ...(this.me.region ? { region: this.me.region } : {}),
+      ...(this.me.nick ? { nick: this.me.nick } : {}),
+      ...(this.started ? { have: this.log.length } : {}),
       proto: PARTY_PROTOCOL_VERSION,
       rules: PARTY_RULES_VERSION,
-      tokenCommit: hs.tokenCommit,
-      ...(hs.reconnectToken ? { reconnectToken: hs.reconnectToken } : {}),
+      // BinaryPack encodes an explicit undefined property as null. Spreading
+      // the handshake omits absent prev/reconnect fields so validation survives.
+      ...hs,
     } satisfies Msg);
+    const accepted = await acknowledged;
+    clearTimeout(timer);
+    if (!accepted) { if (this.toHost === c) this.toHost = null; c.close(); return false; }
     for (const w of this.connWaiters.splice(0)) w();
     return true;
   }

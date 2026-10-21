@@ -1,0 +1,20 @@
+[Unit]
+Description=Rich4 isolated staging static server
+After=network.target
+
+[Service]
+Type=forking
+User=devspace
+Group=devspace
+WorkingDirectory=/srv/devspace/repos/rich4-runtime/control
+PIDFile=/srv/devspace/repos/rich4-runtime/control/staging-nginx.pid
+ExecStartPre=/usr/sbin/nginx -p /srv/devspace/repos/rich4-runtime/control/ -c staging-nginx.conf -t
+ExecStart=/usr/sbin/nginx -p /srv/devspace/repos/rich4-runtime/control/ -c staging-nginx.conf
+ExecReload=/usr/sbin/nginx -p /srv/devspace/repos/rich4-runtime/control/ -c staging-nginx.conf -s reload
+ExecStop=/usr/sbin/nginx -p /srv/devspace/repos/rich4-runtime/control/ -c staging-nginx.conf -s quit
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
