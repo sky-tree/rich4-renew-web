@@ -1,0 +1,36 @@
+{
+  "timestamp": "2026-10-21T16:16:29.720Z",
+  "mode": "Two real WebRTC clients on one Mac through remote TURN; not cross-NAT gameplay",
+  "received": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "report": [
+    {
+      "localType": "relay",
+      "remoteType": "relay"
+    },
+    {
+      "localType": "relay",
+      "remoteType": "relay"
+    }
+  ]
+}

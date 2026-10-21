@@ -9,7 +9,7 @@ const port = Number(process.env.E2E_NGINX_PORT || 5189);
 if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Invalid E2E_NGINX_PORT');
 const temp = mkdtempSync(join(tmpdir(), 'rich4-benchmark-nginx-'));
 mkdirSync(join(temp, 'logs'));
-symlinkSync(resolve('dist'), join(temp, 'rich4'));
+symlinkSync(resolve(process.env.E2E_DIST_DIR || 'dist'), join(temp, 'rich4'));
 const log = process.env.E2E_ORIGIN_LOG || join(temp, 'origin.jsonl');
 writeFileSync(log, '');
 const snippet = readFileSync(resolve('../deploy/nginx-rich4.conf'), 'utf8').replaceAll('/srv/www/apps', temp);

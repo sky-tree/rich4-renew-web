@@ -1,0 +1,26 @@
+{
+  "candidate": "a5f27de",
+  "origin": "https://rich4-staging.gopeaks.club/",
+  "executionDate": "2026-10-22",
+  "framework": "Playwright / Chromium",
+  "source": "Observed list-reporter completion; traces and video disabled for private staging",
+  "result": {
+    "passed": 8,
+    "failed": 0,
+    "projects": [
+      "desktop-chrome",
+      "mobile-chrome"
+    ],
+    "wallSummary": "2.3m"
+  },
+  "scenarios": [
+    "UI manual save, refresh, UI load, exact state and continue rolling",
+    "Natural turn auto-save, refresh and restore through UI slot picker",
+    "WebGL pixel composition and context-loss Canvas fallback",
+    "WebGL creation-failure Canvas fallback"
+  ],
+  "limitations": [
+    "Mobile viewport simulation; not a physical mobile device",
+    "Gameplay subset, not every map or historical save format"
+  ]
+}

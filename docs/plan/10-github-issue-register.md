@@ -8,18 +8,20 @@
 
 ## 1. 追踪表
 
+2026-10-21 通过 GitHub 实时核实 #1～#10 均为 OPEN；本表实现进度不代表工单已关闭。未修改远端 Issue 状态。
+
 | 追踪 ID | 优先级 | 阶段 | 工单标题 | GitHub Issue | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| ISSUE-DRAFT-01 | P1 | M7 | 修复 VPS 版本回滚入口与实机回滚验收 | [#1](https://github.com/sky-tree/rich4-renew-web/issues/1) | Fixed · 自动化测试通过 |
-| ISSUE-DRAFT-02 | P1 | M7 | 修复 PWA 图标缺失与 Web Manifest MIME | [#2](https://github.com/sky-tree/rich4-renew-web/issues/2) | Fixed · 自动化测试通过 |
-| ISSUE-DRAFT-03 | P1 | M7 | 修正 Service Worker 更新缓存策略及回滚一致性 | [#3](https://github.com/sky-tree/rich4-renew-web/issues/3) | Fixed · 自动化测试通过 |
-| ISSUE-DRAFT-04 | P1 / security | M7 | 审核 Basic Auth / Cloudflare 对受限素材的缓存边界 | [#4](https://github.com/sky-tree/rich4-renew-web/issues/4) | Fixed · 自动化测试通过 |
-| ISSUE-DRAFT-05 | P1 | M7 | 发布版本对齐与回滚/HTTP 证据留档 | [#5](https://github.com/sky-tree/rich4-renew-web/issues/5) | Fixed · 自动化测试通过 |
-| ISSUE-DRAFT-06 | P1 | M8 | 引入 Playwright Web E2E 冒烟与失败证据归档 | [#6](https://github.com/sky-tree/rich4-renew-web/issues/6) | Fixed · E2E与CI已覆盖 |
-| ISSUE-DRAFT-07 | P1 | M8 | 普通完整对局、跨设备与历史存档验收 | [#7](https://github.com/sky-tree/rich4-renew-web/issues/7) | Fixed · T01-T14已验收 |
-| ISSUE-DRAFT-08 | P1 | M9 | 冷/热加载、资源体积和 Canvas 性能基准 | [#8](https://github.com/sky-tree/rich4-renew-web/issues/8) | Closed · 已完成（详见 [13-s3-benchmark-report.md](13-s3-benchmark-report.md)） |
-| ISSUE-DRAFT-09 | P2 | M9 | 检查实验 WebGL 的双绘制并完成真正 A/B | [#9](https://github.com/sky-tree/rich4-renew-web/issues/9) | Closed · 已完成（详见 [13-s3-benchmark-report.md](13-s3-benchmark-report.md)） |
-| ISSUE-DRAFT-10 | P1 | M10 | PeerJS/TURN 跨 NAT、断线恢复与 3–5 人内测 | [#10](https://github.com/sky-tree/rich4-renew-web/issues/10) | Open · 待处理 |
+| ISSUE-DRAFT-01 | P1 | M7 | 修复 VPS 版本回滚入口与实机回滚验收 | [#1](https://github.com/sky-tree/rich4-renew-web/issues/1) | OPEN · 有实现/本地验证，线上验收待完成 |
+| ISSUE-DRAFT-02 | P1 | M7 | 修复 PWA 图标缺失与 Web Manifest MIME | [#2](https://github.com/sky-tree/rich4-renew-web/issues/2) | OPEN · 有实现/本地验证，线上验收待完成 |
+| ISSUE-DRAFT-03 | P1 | M7 | 修正 Service Worker 更新缓存策略及回滚一致性 | [#3](https://github.com/sky-tree/rich4-renew-web/issues/3) | OPEN · 有实现/本地验证，线上验收待完成 |
+| ISSUE-DRAFT-04 | P1 / security | M7 | 审核 Basic Auth / Cloudflare 对受限素材的缓存边界 | [#4](https://github.com/sky-tree/rich4-renew-web/issues/4) | OPEN · 有实现/本地验证，线上验收待完成 |
+| ISSUE-DRAFT-05 | P1 | M7 | 发布版本对齐与回滚/HTTP 证据留档 | [#5](https://github.com/sky-tree/rich4-renew-web/issues/5) | OPEN · 有实现/本地验证，线上验收待完成 |
+| ISSUE-DRAFT-06 | P1 | M8 | 引入 Playwright Web E2E 冒烟与失败证据归档 | [#6](https://github.com/sky-tree/rich4-renew-web/issues/6) | OPEN · 生产预览测试已补齐，新 CI 待运行 |
+| ISSUE-DRAFT-07 | P1 | M8 | 普通完整对局、跨设备与历史存档验收 | [#7](https://github.com/sky-tree/rich4-renew-web/issues/7) | OPEN · 部分验收，详见 S2 修正报告 |
+| ISSUE-DRAFT-08 | P1 | M9 | 冷/热加载、资源体积和 Canvas 性能基准 | [#8](https://github.com/sky-tree/rich4-renew-web/issues/8) | OPEN · 本地候选证据已补，实机范围待完成（见 [S3](13-s3-benchmark-report.md)） |
+| ISSUE-DRAFT-09 | P2 | M9 | 检查实验 WebGL 的双绘制并完成真正 A/B | [#9](https://github.com/sky-tree/rich4-renew-web/issues/9) | OPEN · 本地候选证据已补，实机范围待完成（见 [S3](13-s3-benchmark-report.md)） |
+| ISSUE-DRAFT-10 | P1 | M10 | PeerJS/TURN 跨 NAT、断线恢复与 3–5 人内测 | [#10](https://github.com/sky-tree/rich4-renew-web/issues/10) | OPEN · 用户跨网成员/聊天通过；长局、重连和 3–5 人待验 |
 
 **统一 Issue 标题前缀**：`[M7][P1]` / `[M9][P2]`；可根据仓库现有 labels 再标记 `bug`、`enhancement`、`testing` 或 `security`，不要假设不存在的 label 已创建。
 
@@ -114,12 +116,12 @@
 **现状**：分包清单累计约 1.64 GB，但缺少已验收的冷/热 TTI、首地图 transferred、请求数、FPS/内存数据；总素材体积 **不等于首屏网络传输量**。
 
 **工作**：
-- [x] 固定设备/网络/浏览器/地图/人数/画质，记录冷/热首屏、首地图、请求数、传输 MiB。
-- [x] 用 `window.__rich4Perf` 和浏览器工具记录 FPS、p50/p95/p99、长帧和峰值内存。
-- [x] 优先定位无关图片预取、大量碎图、地表 tile 和字体瀑布。
-- [x] 评估 WebP/图集/并发/可见性缓存优化，必须保证原地图的锚点、方向、透明度一致。
+- [x] 本地固定构建/电脑/浏览器/视口，记录冷/热菜单、首地图窗口及真实源站 HTTP 传输。
+- [x] 保留 300 个 rAF 原始间隔、分位数与 JS 堆采样；它们不是 GPU 时间或进程峰值。
+- [ ] 目标设备及受控网络条件复测，定位素材/字体瀑布与长局瓶颈。
+- [ ] 按实测瓶颈决定是否优化，并覆盖锚点、方向、透明度与复杂场景视觉回归。
 
-**验收**：主菜单必需资源 4.70 MiB ≤ 10 MiB；Canvas 2D 平均 59.5 FPS、1% Low 59.5 FPS，长帧仅 1 帧；自动化测试 `benchmark.spec.ts` 100% 通过（详见 [13-s3-benchmark-report.md](13-s3-benchmark-report.md)）。涉及 M9-01～03。
+**验收状态**：旧数值不再作为正式依据。生产 Nginx 的原始传输和 rAF 记录见 [S3 修正报告](13-s3-benchmark-report.md)；目标设备及受控网络条件复测未完成。涉及 M9-01～03。
 
 ### ISSUE-DRAFT-09 · `[M9][P2] 检查实验 WebGL 的双绘制并完成真正 A/B`
 
@@ -127,11 +129,11 @@
 
 **工作**：
 - [x] 定义独立 Canvas 和 WebGL 视觉渲染职责；在不改变规则 RNG 的情况下去重绘制。
-- [x] 补齐复杂场景/天气/歌舞伎町/文字/点击命中/DPR 的视觉回归。
-- [x] 同设备同局面比较 FPS、p95、GPU/CPU、显存/纹理、上下文丢失与回退。
+- [ ] 补齐复杂场景/天气/歌舞伎町/文字/点击命中/DPR 的视觉回归。
+- [ ] GPU/CPU、显存及目标设备专项仍待测；本地同局 rAF 和上下文丢失回退已有证据。
 - [x] 明确是否值得继续投入；无可重复收益则保持默认 Canvas，不扩大 WebGL 适配范围。
 
-**验收**：彻底消除双重渲染；同局 500+ 帧 A/B 实测表明 Canvas 2D（59.5 FPS）优于 WebGL（58.6 FPS），且架构更稳健；产出 ADR-007 明确 NO-GO 决策，保持 Canvas 2D 默认地位（详见 [13-s3-benchmark-report.md](13-s3-benchmark-report.md)）。涉及 M9-04。
+**验收状态**：透明缓冲及失败回退修复已覆盖实际 Chromium 像素测试；配对性能记录见 [S3](13-s3-benchmark-report.md)。尚不能声称所有复杂场景已验证，保持 Canvas 默认。涉及 M9-04。
 
 ### ISSUE-DRAFT-10 · `[M10][P1] PeerJS/TURN 跨 NAT、断线恢复与 3–5 人内测`
 

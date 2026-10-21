@@ -1,6 +1,6 @@
 # 11 · 接下来四个周期的执行计划（2026-10-21）
 
-> 状态：**已排期，尚未开发/验收**。主要目标：把已实现的 M0–M6 从「单测与构建正常」推进到「受控版本可回滚、能完整对局、可量化性能、跨网络联机可验证」。
+> 状态：**候选验收进行中（2026-10-22）**，最新证据见 [14](14-release-candidate-acceptance.md)。主要目标：把已实现的 M0–M6 从「单测与构建正常」推进到「受控版本可回滚、能完整对局、可量化性能、跨网络联机可验证」。
 >
 > 任务源：GitHub [Issues #1～#10](https://github.com/sky-tree/rich4-renew-web/issues)；技术基线与事实证据见 [09-post-deploy-verification.md](09-post-deploy-verification.md)。
 >
@@ -20,7 +20,7 @@
 | --- | --- | --- | --- |
 | **S1 · 发布可靠性** 10/22–10/28 | **#1 回滚 → #4 鉴权/CDN → #5 版本台账 → #2 PWA 图标/MIME → #3 SW 缓存** | 独立的修复 PR、自动化回归、HTTP/缓存检查、受控 A→B→A 回滚记录 | 授权访问与资源隔离可信，回滚可验证，PWA/SW 不引入版本混读 |
 | **S2 · 完整可玩性** 10/29–11/04 | **#6 浏览器 E2E → #7 完整对局/真机** | Playwright 冒烟和失败工件；至少一场完整结算；存档刷新恢复；桌面/移动测试矩阵 | 无阻断 P0；至少一个桌面和一个移动端完成启动、操作、存档恢复；完整对局报告 |
-| **S3 · 测量与优化** 11/05–11/11 | **#8 性能基线 → #9 WebGL 实验（已完成）** | 冷/热加载、请求/流量/FPS/帧耗时/内存基准；消除双绘制；A/B 实测与 Go/No-Go 架构决策 | **已完成（PASS）**：首屏 4.70 MiB ≤ 10 MiB，Canvas 2D 稳定 59.5 FPS；确立 Canvas 2D 默认地位（详见 [13-s3-benchmark-report.md](13-s3-benchmark-report.md)） |
+| **S3 · 测量与优化** 11/05–11/11 | **#8 性能基线 → #9 WebGL 实验（部分验证）** | 生产构建原始 HTTP/rAF 数据及合成/回退测试 | 本地证据已补，实机/复杂场景待验；见 [13](13-s3-benchmark-report.md) |
 | **S4 · 联机验收/内测** 11/12–11/18 | **#10 PeerJS/TURN、跨 NAT 长局与 3–5 人测试** | 两种以上真实网络组合；20+ 回合状态一致性；断线恢复、TURN/安全审计；内测缺陷回流 | 联机未通过就不开放联机；如果单机已经过 S1+S2 验收，可只开放受控单机测试 |
 
 ### S1 · 本轮立即开工的具体步骤
@@ -47,10 +47,7 @@
   - 建立分层测试：`npm run test:e2e:code`（无素材 CI 模式，覆盖启动、PWA Manifest 与多视口响应式）与 `npm run test:e2e:full`（完整素材对局模式）；
   - 实现 `setupDiagnostics()` 自动脱敏并归档 Console、失败请求与错误堆栈；
   - 在 `.github/workflows/ci.yml` 引入 Chromium 浏览器与 `test:e2e:code` 自动化冒烟，失败自动留存 artifact。
-- [x] **#7 普通完整对局、跨设备与历史存档验收**：
-  - 完成真实浏览器最短闭环全链路：选人进入地图 → 掷骰移动推进 → 保存至 Slot 1 → 浏览器重载刷新 → 成功读取 Slot 1 并恢复对局；
-  - 验证 IndexedDB 5 回合滑动自动档环（Auto-save ring）；
-  - 完成 T-01～T-14 端到端验收矩阵并产出正式报告 [12-s2-acceptance-report.md](docs/plan/12-s2-acceptance-report.md)。
+- [ ] **#7 完整范围尚未完成**：已补 UI 手动/自然自动档逐字段恢复与台湾 2P 一月自然结算；跨设备、所有地图和历史正式存档仍待验。逐项状态见 [12](12-s2-acceptance-report.md)。
 
 ### S3 · 先测量再优化
 
@@ -60,17 +57,9 @@
 
 ### S3 · 测量与优化（#8、#9）进展记录
 
-- [x] **#8 资源传输量与性能基准体系**：
-  - 构建端到端自动化性能与流量测试套件 `game/tests/e2e/benchmark.spec.ts` 与 `npm run test:e2e:benchmark`；
-  - 测定冷启动主菜单必需资源总量 **4.70 MiB**（4,928,179 字节），稳定达标并大幅优于 ≤ 10 MiB 门槛；
-  - 测定首个地图（台湾地图）真实开局传输量 **50.68 MiB**（1,283 个按需分块请求）；
-  - 生产打包（Rollup chunking）主 JS 降至 327 kB（gzip: 119 kB），CSS 274 kB（gzip: 110 kB），首屏 HTML 仅 2.9 kB。
-- [x] **#9 WebGL 双重绘制消除与 A/B 实测**：
-  - 彻底消除 WebGL 模式下 Canvas 2D 重复调用 `drawImage` 绘制场景精灵与地面的冗余开销；Canvas 2D 仅保留矢量文字与透明 HUD；
-  - 在 `game/src/renderer/renderer.test.ts` 新增专项单测守卫，单帧 Draw Call 精确等于 `1 ground quad + N sprite quads`；
-  - 基于真实 500+ 帧对局实测对比：Canvas 2D（59.5 FPS，1 次长帧）表现优于 WebGL（58.6 FPS，2 次长帧）；
-  - 产出 ADR-007 NO-GO 架构决策，确立 **Canvas 2D 保持为默认生产渲染器**，WebGL 作为隔离的实验性后端通过 `?renderer=webgl` 留存；
-  - 产出正式报告 [13-s3-benchmark-report.md](13-s3-benchmark-report.md)。
+- [x] 正式构建通过实际 Nginx 采集压缩 HTTP 字节，计入 SW 后台请求；原始 JSON 与方法见 [13](13-s3-benchmark-report.md)。旧 4.70 MiB / 59.5 FPS 数值已撤回为正式依据。
+- [x] 修复 WebGL HUD 透明缓冲与失败回退，通过真实 Chromium 像素测试；同存档各采集 300 个 rAF 间隔，保持默认 Canvas。
+- [ ] 每环境三次重复、真实手机/低内存设备、复杂运动/天气场景及进程/GPU 内存尚未完成，不标记整项 PASS 或关闭 #8/#9。
 
 ### S4 · 联机与小范围测试
 

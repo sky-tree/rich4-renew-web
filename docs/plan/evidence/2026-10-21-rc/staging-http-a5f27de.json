@@ -1,0 +1,192 @@
+{
+  "transportRetries": 0,
+  "timestamp": "2026-10-21T16:20:21.192Z",
+  "origin": "https://rich4-staging.gopeaks.club",
+  "release": {
+    "buildId": "0.6.6-a5f27de",
+    "gitSha": "a5f27de",
+    "baseUrl": "/"
+  },
+  "checks": [
+    {
+      "path": "/",
+      "identity": "anonymous",
+      "status": 401,
+      "headers": {
+        "content-type": "text/html",
+        "cf-cache-status": "DYNAMIC",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    {
+      "path": "/assets/maps/maps.json",
+      "identity": "anonymous",
+      "status": 401,
+      "headers": {
+        "content-type": "text/html",
+        "cache-control": "private, no-transform, max-age=86400, must-revalidate",
+        "cf-cache-status": "DYNAMIC",
+        "vary": "Authorization, Accept-Encoding",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    {
+      "path": "/",
+      "identity": "authorized",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html",
+        "cache-control": "no-store",
+        "cf-cache-status": "DYNAMIC",
+        "vary": "Accept-Encoding",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    {
+      "path": "/assets/index-CCtbxbue.js",
+      "identity": "authorized",
+      "status": 200,
+      "headers": {
+        "content-type": "application/javascript",
+        "cache-control": "public, max-age=31536000, immutable",
+        "cf-cache-status": "HIT",
+        "vary": "Accept-Encoding",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    {
+      "path": "/sw.js",
+      "identity": "authorized",
+      "status": 200,
+      "headers": {
+        "content-type": "application/javascript",
+        "cache-control": "no-cache, no-store, must-revalidate, max-age=0",
+        "cf-cache-status": "BYPASS",
+        "vary": "Accept-Encoding",
+        "service-worker-allowed": "/",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    {
+      "path": "/manifest.webmanifest",
+      "identity": "anonymous",
+      "status": 200,
+      "headers": {
+        "content-type": "application/manifest+json",
+        "cache-control": "no-store",
+        "cf-cache-status": "DYNAMIC",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    {
+      "path": "/icons/icon-192.png",
+      "identity": "anonymous",
+      "status": 200,
+      "headers": {
+        "content-type": "image/png",
+        "cache-control": "public, max-age=604800",
+        "cf-cache-status": "HIT",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    {
+      "path": "/assets/maps/maps.json",
+      "identity": "authorized",
+      "status": 200,
+      "headers": {
+        "content-type": "application/json",
+        "cache-control": "private, no-transform, max-age=86400, must-revalidate",
+        "cf-cache-status": "DYNAMIC",
+        "vary": "Accept-Encoding, Authorization, Accept-Encoding",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    {
+      "path": "/assets/maps/maps.json",
+      "identity": "anonymous",
+      "status": 401,
+      "headers": {
+        "content-type": "text/html",
+        "cache-control": "private, no-transform, max-age=86400, must-revalidate",
+        "cf-cache-status": "DYNAMIC",
+        "vary": "Authorization, Accept-Encoding",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    {
+      "path": "/assets/maps/maps.json",
+      "identity": "invalid",
+      "status": 401,
+      "headers": {
+        "content-type": "text/html",
+        "cache-control": "private, no-transform, max-age=86400, must-revalidate",
+        "cf-cache-status": "DYNAMIC",
+        "vary": "Authorization, Accept-Encoding",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    {
+      "path": "/assets/maps/maps.json",
+      "identity": "authorized",
+      "status": 200,
+      "headers": {
+        "content-type": "application/json",
+        "cache-control": "private, no-transform, max-age=86400, must-revalidate",
+        "cf-cache-status": "DYNAMIC",
+        "vary": "Accept-Encoding, Authorization, Accept-Encoding",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    {
+      "path": "/assets/maps/maps.json",
+      "identity": "anonymous",
+      "status": 401,
+      "headers": {
+        "content-type": "text/html",
+        "cache-control": "private, no-transform, max-age=86400, must-revalidate",
+        "cf-cache-status": "DYNAMIC",
+        "vary": "Authorization, Accept-Encoding",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    {
+      "path": "/assets/maps/maps.json",
+      "identity": "invalid",
+      "status": 401,
+      "headers": {
+        "content-type": "text/html",
+        "cache-control": "private, no-transform, max-age=86400, must-revalidate",
+        "cf-cache-status": "DYNAMIC",
+        "vary": "Authorization, Accept-Encoding",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    {
+      "path": "/assets/rc-missing.png",
+      "identity": "authorized",
+      "status": 404,
+      "headers": {
+        "content-type": "text/html",
+        "cache-control": "private, no-transform, max-age=86400, must-revalidate",
+        "cf-cache-status": "BYPASS",
+        "vary": "Authorization, Accept-Encoding",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    {
+      "path": "/release-manifest.json",
+      "identity": "authorized",
+      "status": 200,
+      "headers": {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+        "cf-cache-status": "DYNAMIC",
+        "vary": "Accept-Encoding",
+        "x-content-type-options": "nosniff"
+      }
+    }
+  ],
+  "limitations": [
+    "Single authorized account plus anonymous and invalid identities; Cloudflare dashboard rules not inspected"
+  ]
+}

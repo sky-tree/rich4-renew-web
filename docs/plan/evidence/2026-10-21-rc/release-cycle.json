@@ -1,0 +1,21 @@
+{
+  "mode": "local real Nginx; generated A/B app shells with distinct entry hashes",
+  "evidence": [
+    {
+      "version": "B-version-two",
+      "saveRestoredExactly": true,
+      "caches": [
+        "unrelated-app-cache",
+        "rich4-app-shell-release-cycle-B-version-two"
+      ]
+    },
+    {
+      "version": "A",
+      "saveRestoredExactly": true,
+      "caches": [
+        "unrelated-app-cache",
+        "rich4-app-shell-release-cycle-A"
+      ]
+    }
+  ]
+}

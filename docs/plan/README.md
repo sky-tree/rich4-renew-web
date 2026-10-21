@@ -8,6 +8,8 @@
 >
 > 上游分叉基线：`bb1093863f389620fb56bc630d8b32ef9a35e901`
 
+> **2026-10-22 最新验收入口**：[14 · 发布候选版验收](14-release-candidate-acceptance.md)。以下旧基线表保留为历史快照；最新范围以 [S2](12-s2-acceptance-report.md)、[S3](13-s3-benchmark-report.md) 和候选记录为准，不能沿用全部 PASS 的旧结论。
+
 ## 0. 使用说明与状态分类原则
 
 本目录是 **Web 专项 Fork 的单一事实来源（Single Source of Truth）**。为保持工程实事求是，所有里程碑与功能状态严格区分三个层级：
@@ -31,6 +33,9 @@
 | [09-post-deploy-verification.md](09-post-deploy-verification.md) | M7–M10 线上修复、浏览器/真机验收、性能与联机放行标准 | 当前后续开发与验收执行 |
 | [10-github-issue-register.md](10-github-issue-register.md) | 已创建的 GitHub Issues #1～#10 及原始问题证据和验收清单 | 跟踪 M7–M10 修复与实机验收 |
 | [11-execution-sprints.md](11-execution-sprints.md) | S1–S4 的执行时间窗口、Issue 依赖、首批任务和停止/放行条件 | 2026-10-21 后的日常研发排期 |
+| [12-s2-acceptance-report.md](12-s2-acceptance-report.md) | 逐项修正的 T-01～T-14 执行范围 | 游戏与设备验收 |
+| [13-s3-benchmark-report.md](13-s3-benchmark-report.md) | 正式 Nginx 传输与原始 rAF/堆采样 | 性能复测 |
+| [14-release-candidate-acceptance.md](14-release-candidate-acceptance.md) | 独立环境、当前版本、五项清单与跨网进展 | 当前验收事实 |
 
 ## 1. 一页结论
 

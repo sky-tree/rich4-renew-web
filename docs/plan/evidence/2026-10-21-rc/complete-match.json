@@ -1,0 +1,62 @@
+{
+  "settings": {
+    "mapId": 2,
+    "players": [
+      {
+        "character": 9,
+        "human": true
+      },
+      {
+        "character": 8,
+        "human": false
+      }
+    ],
+    "fundIndex": 5,
+    "traffic": 0,
+    "landLimitIndex": 0,
+    "daysLimitIndex": 5,
+    "victoryIndex": 0,
+    "startDate": 132778517,
+    "seed": 497181762
+  },
+  "initial": {
+    "date": 132778517,
+    "daysElapsed": 0,
+    "monthsElapsed": 0,
+    "priceIndex": 1,
+    "current": 0,
+    "diceTotal": 0,
+    "lotteryPool": 0,
+    "rng": 3426705798
+  },
+  "final": {
+    "date": 132778772,
+    "daysElapsed": 30,
+    "monthsElapsed": 1,
+    "priceIndex": 1,
+    "current": 0,
+    "diceTotal": 3,
+    "lotteryPool": 1000,
+    "rng": 1348775097
+  },
+  "over": {
+    "winner": 1,
+    "code": 1
+  },
+  "players": [
+    {
+      "id": 0,
+      "cash": 307,
+      "bank": 5280,
+      "bankrupt": false
+    },
+    {
+      "id": 1,
+      "cash": 5,
+      "bank": 2868,
+      "bankrupt": false
+    }
+  ],
+  "timing": "browser animation clock accelerated; rules unchanged",
+  "wallMs": 74881
+}

@@ -36,6 +36,7 @@ npm test
 
 # 4. 运行 TypeScript 静态类型检查
 npx tsc --noEmit
+npx tsc --noEmit -p tsconfig.e2e.json
 
 # 5. 构建 Web 生产包（默认子路径 /rich4/；无素材 CI 可加 RICH4_NO_ASSETS=1）
 npm run build:web
@@ -48,12 +49,18 @@ npm run verify:web:code
 
 # 8. 启动本地开发服务器（默认 http://127.0.0.1:5173/）
 npm run dev
+
+# 9. 已构建 dist 后，以生产 preview 执行浏览器测试（首次先安装 Chromium）
+npx playwright install chromium
+npm run test:e2e:code
+npm run test:e2e:full
 ```
 
 ## 当前工程与验收状态
 
-- **代码实现与本地测试（已完成）**：M0–M6 代码实现、安全加固（联机聊天 DOM XSS 防护、两阶段 SHA-256 重连令牌轮换防冒用、锁步座位归属与未开启 `seq` 强校验、6 位高熵房间码）、全量 36,109 文件真实字节 SHA-256 资源审计、强制串联校验的不可变版本发布脚本、PWA 最小可运行资源预缓存、手动分包优化及 **55 个测试文件 / 529 项单元测试**（无素材 CI 模式下 148 项通过 / 381 项跳过）已全部通过。
-- **线上部署与跨设备真机验收（待在私人云端 VPS 执行）**：需在挂载合法私人素材的云端 Nginx 服务器（`/rich4/`）完成真实 HTTPS 冒烟、跨网络 WebRTC/TURN 真机联机与多浏览器实机验收后，方可视为完成最终线上生产验收。
+- **候选代码与本地测试**：59 个文件 / 542 项 Vitest 通过；正式构建、36,109 文件素材摘要、真实 Nginx、UI 存档恢复、一局自然结算、WebGL 合成/回退和原始性能记录已补齐，具体范围见 [候选验收记录](docs/plan/14-release-candidate-acceptance.md)。
+- **独立受控环境**：[rich4-staging.gopeaks.club](https://rich4-staging.gopeaks.club/) 已部署候选 `a5f27de`，使用既有私测账号；原 `/rich4/` 仍保留 `66cf0b3`。候选已接入受控 PeerServer 和短效 TURN。
+- **验收仍未完成**：首次跨网发现的 BinaryPack 入房协议缺陷已修；用户以家宽电脑和移动数据手机确认双方成员显示、聊天互通。跨 NAT 长局、断线恢复、3–5 人及多平台真机测试仍在进行。不能据已有测试判定 M7–M10 全部完成。
 
 ## 授权说明
 

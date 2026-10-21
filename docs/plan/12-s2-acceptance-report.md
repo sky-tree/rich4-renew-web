@@ -1,71 +1,41 @@
-# 12 · S2 周期（测试系统与真机验收）正式报告
+# 12 · S2 测试与实机验收报告
 
-> 登记时间：2026-10-21  
-> 责任里程碑：M8（完整游戏可玩性与测试系统闭环）  
-> 关联 Issues：[#6](https://github.com/sky-tree/rich4-renew-web/issues/6)（Playwright E2E 冒烟与证据归档）、[#7](https://github.com/sky-tree/rich4-renew-web/issues/7)（普通完整对局与跨设备存档验收）
+> 2026-10-21 候选周期复核。此表替代原报告中 T-01～T-14 全部 PASS、Safari 已通过的结论。单测、文件校验和模拟视口不能代替真实设备验收。关联 Issues #6、#7；GitHub 状态仍为 OPEN。
 
----
+## 验收矩阵
 
-## 1. 概述与执行策略
+PASS 仅针对明确写出的执行范围；PARTIAL 表示仍有必需子项未执行；NOT RUN 表示没有对应现场证据。
 
-在完成 S1 发布可靠性与缓存安全边界加固后，S2 周期重点将测试能力从“单元与规则引擎确定性”延伸至“**真实无头/有头浏览器端到端闭环**”。
-
-本周期达成以下关键成果：
-1. **测试分层体系落地**：
-   - **`code-only`（CI 模式）**：无第三方受保护素材依赖，验证应用入口、PWA Manifest 图标、视口响应式适配、`#boot-err` 启动异常兜底，耗时仅 ~4.8 秒，直接整合入 GitHub Actions；
-   - **`full-assets`（真实对局模式）**：在本地/私有挂载 1.64 GB 完整素材环境下，执行「启动 → 2P 选人开局 → 掷骰移动 → 存盘至槽位 1 → 浏览器重载刷新 → 读档恢复」的最短闭环自动化对局；
-2. **失败证据自动化留档机制**：
-   - 自动挂载 `setupDiagnostics()` 拦截器；
-   - 收集脱敏后的 Console 日志（彻底抹除密码、TURN 凭据、重连令牌）；
-   - 收集失败的 HTTP 响应（>= 400）；
-   - 在失败时自动录制 Trace 归档包、录屏视频与全尺寸截图至 `test-results/`。
-3. **完成 T-01～T-14 端到端用例逐项实测验收**。
-
----
-
-## 2. 端到端用例（T-01～T-14）逐项验收矩阵
-
-| 编号 | 场景名称 | 验证结果 | 验证依据与证据 |
+| 编号 | 场景 | 状态 | 已有证据与剩余范围 |
 | --- | --- | --- | --- |
-| **T-01** | 进入首页、菜单选项与新开局 | **PASS** | `smoke-code-only.spec.ts` + `full-gameplay.spec.ts`：标题画面 `.title` 正常出现，音效/语言切换无黑屏，进入选人界面 `.ng-sheet` 正常。 |
-| **T-02** | 普通模式 2–4 人 + AI | **PASS** | `full-gameplay.spec.ts`：2P 开局进入地图，人类玩家点击 `.go` 按钮掷骰子，步数计算正确，角色沿等角瓦片行进并更新坐标与现金，AI 正确接管后续回合。 |
-| **T-03** | 股票、银行、卡片、道具、事件 | **PASS** | `core/modules/*.test.ts` 专项规则全覆盖：35 项卡片、21 项道具、20 项股票、12 项银行、19 项随机事件确定性单测 100% 通过。 |
-| **T-04** | 多张原版地图加载 | **PASS** | 36,109 个游戏素材真实字节 SHA-256 校验 0 缺失；台湾、中国大陆、日本等地图 JSON 解析及精灵锚点对齐正确。 |
-| **T-05** | 自制/歌舞伎町特殊地图 | **PASS** | `core/kabukicho.test.ts`（17 项测试通过）：夜间霓虹图层、街道车辆与行人特效图层、特殊建筑（俱乐部/酒吧）规则完备。 |
-| **T-06** | 大富豪模式（五城十二人） | **PASS** | `core/world.test.ts`（31 项测试通过）：跨城世界状态机、新干线与航班周游、十二人破产淘汰判定完备。 |
-| **T-07** | 手动和自动存档保存与恢复 | **PASS** | `full-gameplay.spec.ts`：实机执行 Slot 1 保存，调用 `page.reload()` 重新进入页面，读取 Slot 1 后玩家资金、位置完美还原；5 回合滑动自动档环测试通过。 |
-| **T-08** | 下载/分享图片 | **PASS** | `src/ui/share.test.ts`（4 项测试通过）：纯 Web Canvas `toBlob` 导出，支持 Web Share API 及 `<a download>` 回退，无 Capacitor 依赖。 |
-| **T-09** | 横竖屏切换与页面缩放 | **PASS** | `smoke-code-only.spec.ts`：桌面 1280x720、移动端 844x390（横屏）与 390x844（竖屏）下，`fitShell` 自适应缩放，无 DOM 溢出。 |
-| **T-10** | 网络慢速、断开与 404 兜底 | **PASS** | 首页及脚本启动异常均由 `#boot-err` 捕获并输出系统版本；素材缺失时展示友好重试卡片，杜绝静默白屏。 |
-| **T-11** | 缓存旧版后发布新版与回滚 | **PASS** | `release-ctl.test.ts` 与 `deploy-security.test.ts`：`sw.js` 零缓存强制刷新；沙盒内 A→B→A→B 真实回滚，历史存档完好。 |
-| **T-12** | 派对模式 PeerJS 联机 | **PASS (待S4长局)** | `src/ui/party-net.test.ts`（8 项测试通过）：已修复聊天 DOM XSS、重连冒用令牌承诺、未到 seq 注入拦截；待 S4 执行真实 NAT 跨网长局。 |
-| **T-13** | 老旧设备/低内存档适配 | **PASS** | `src/ui/old-safari.test.ts` + `mem-tier.ts`：视口外地面分块自动回收，低内存设备资源按需解码，无死锁。 |
-| **T-14** | 全局卸载与资源清理 | **PASS** | `src/renderer/renderer.test.ts`：`destroy()` 正常释放 BoardView 动画循环、Web Audio 上下文与事件监听，无句柄泄漏。 |
+| T-01 | 首页、菜单、新开局 | PARTIAL | Chromium 正式构建可开台湾 2P；音效、语言及全设备组合未全面检查。 |
+| T-02 | 普通 2–4 人 + AI | PARTIAL | 真实 2P UI 对局，浏览器动画时钟加速，规则未改，30 天自然结算；4 人及破产路径未专项验收。 |
+| T-03 | 股票、银行、卡片、道具、事件 | PARTIAL | 规则回归单测通过；未逐项完成对应 UI、金额及特效比对。 |
+| T-04 | 多原版地图 | PARTIAL | 全量素材摘要校验；浏览器流程只覆盖台湾地图，不能据此确认其他地图视觉。 |
+| T-05 | 自制、歌舞伎町地图 | NOT RUN | 有规则单测，缺专项浏览器与触摸操作记录。 |
+| T-06 | 五城十二人大富豪 | NOT RUN | 有世界规则单测，缺完整 UI 对局及资源加载记录。 |
+| T-07 | 手动与自动存档 | PASS（限定） | Chromium 桌面/移动视口：实际 UI 保存、刷新、UI 读档、全部 SaveData 字段比对（忽略 savedAt）、继续掷骰；自动档由引擎自然生成。历史版本及实机仍待验。 |
+| T-08 | 下载、分享图片 | NOT RUN | 现有单测不足以确认系统分享面板或下载结果。 |
+| T-09 | 横竖屏、缩放 | PARTIAL | Chromium 视口烟测；缺真机旋转、缩放与触摸命中记录。 |
+| T-10 | 慢网、断网、404 | PARTIAL | 真实 Nginx 严格 404 与启动烟测；尚未全面执行限速、离线恢复和素材失败重试。 |
+| T-11 | SW 更新、发布回滚 | PARTIAL | 本地真实 Nginx、生成的不同入口 A→B→A：SW 激活后 UI 读档一致、无关缓存保留；不是历史正式存档或线上回滚验收。 |
+| T-12 | 派对联机 | PARTIAL | 旧候选首次入房失败；BinaryPack 缺陷已修。用户在修复版强制中继入口以家宽电脑/移动数据手机确认双方两位成员、聊天互通；同机真实 TURN 往返也通过。长局逐状态摘要、重连及 3–5 人实机仍待验；20 次掷骰反馈尚未返回。 |
+| T-13 | 老设备、低内存 | NOT RUN | 没有真实低内存设备的进程终止、恢复与降级数据。 |
+| T-14 | 卸载、重新载图 | PARTIAL | 渲染单测、实际 WebGL 丢失后 Canvas 回退通过；缺长期循环内存与音频/Worker 清理测量。 |
 
----
+## 实际执行环境
 
-## 3. 跨设备与浏览器矩阵测试记录
+- 本机 macOS / Apple M1 Pro / 32 GiB；本地 Node 25.9.0，CI 配置仍为 Node 22。
+- Playwright Chromium 156.0.8078.4：桌面 1280×720、移动触摸模拟 844×390。移动模拟使用桌面浏览器内核，不算 iPhone 或 Android 实机。
+- 本地 `dist` 正式 `/rich4/` 构建，有完整私有素材；默认 Playwright 启动 `vite preview`，显式 `E2E_DEV_SERVER=1` 才使用开发服务器。
+- 未执行 Safari、Windows Edge、iPhone、iPad 或 Android 的完整实机验收，不保留旧报告中的 PASS 声明。
 
-| 平台与视口 | 渲染模式 | 触摸/交互 | 核心对局与存档 | 结论 |
-| --- | --- | --- | --- | --- |
-| **macOS 开发机 / Chrome (1280x720)** | Canvas 2D | 键鼠 / 滚轮缩放 | 启动 → 2P 开局 → 掷骰移动 → 存盘 → 刷新重载恢复 | **PASS** |
-| **macOS 开发机 / Safari 18+** | Canvas 2D | 触控板 / 缩放 | IndexedDB 存取、音频播放正常 | **PASS** |
-| **移动端模拟器 (iPhone 844x390 横屏)** | Canvas 2D | 纯触摸点击 | GO 掷骰子按钮点击、侧边栏自适应、IndexedDB 自动存档环 | **PASS** |
-| **移动端模拟器 (iPhone 390x844 竖屏)** | Canvas 2D | 纯触摸点击 | 布局竖向适配，主菜单居中缩放无裁剪 | **PASS** |
+## 可复验证据
 
----
+59 个 Vitest 文件 / 542 项用例通过；应用与 E2E 严格 TypeScript 检查通过。UI 存档和渲染浏览器测试共 8 项通过，并在当前线上候选 `a5f27de` 重跑 8 项全部通过；一月完整对局自然结算测试通过两次。完整素材 36,109 文件真实字节摘要校验通过。
 
-## 4. 自动化测试与 CI 运行数据
+自然结算设置、初末状态和结果见 [complete-match.json](evidence/2026-10-21-rc/complete-match.json)；本地更新回滚结果见 [release-cycle.json](evidence/2026-10-21-rc/release-cycle.json)。动画时钟加速只适用于结算功能测试，不能用于性能测量。截图含私有素材，仅在本地保留。
 
-- **Vitest 规则与单元测试**：
-  - 运行命令：`cd game && npm test`
-  - 结果：**57 个测试文件 / 536 项测试 100% 通过（PASS）**。
-- **Playwright 端到端测试**：
-  - `npm run test:e2e:code`：**6 项用例全部通过（耗时 4.8s）**。
-  - `npm run test:e2e:full`：**4 项真实对局与存档恢复用例全部通过（耗时 21.8s）**。
-  - `npm run test:e2e`：**10 项 E2E 用例 100% 通过（耗时 24.6s）**。
-- **发布与内容完整性校验**：
-  - `npm run verify:web`：36,109 文件全量真实 SHA-256 校验通过。
-  - `npm run verify:web:code`：20 项 HTTP 冒烟检查通过。
-- **GitHub Actions CI**：
-  - 已在 `.github/workflows/ci.yml` 引入 Chromium 浏览器自动安装与 `npm run test:e2e:code`，失败自动上传证据。
+`verify:web` 中的 HTTP 检查是模拟；新增 `test:nginx` 才会启动实际 Nginx、发送 HTTP 并检查鉴权/MIME/缓存/404。新增 CI 步骤尚不等于 GitHub 已执行通过，最新远端绿色运行对应旧基线。
+
+候选环境与后续实机结果统一登记在 [14-release-candidate-acceptance.md](14-release-candidate-acceptance.md)。

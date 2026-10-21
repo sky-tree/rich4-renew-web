@@ -1,0 +1,23 @@
+{
+  "candidate": "a5f27de",
+  "executionDate": "2026-10-22",
+  "url": "https://rich4-staging.gopeaks.club/?relay=1&rc=a5f27de",
+  "source": "User-reported cross-network acceptance; not automated candidate-pair statistics",
+  "networks": [
+    "computer on home broadband",
+    "phone on mobile data"
+  ],
+  "userReport": "双方都能看到两人，聊天互通",
+  "result": {
+    "membersVisibleOnBoth": 2,
+    "bidirectionalChat": true
+  },
+  "unverified": [
+    "OS and browser versions",
+    "20 dice rolls / 20 full rounds",
+    "Whole-state equality",
+    "Reconnection",
+    "3-5 players",
+    "Selected ICE candidate statistics on the physical devices"
+  ]
+}
