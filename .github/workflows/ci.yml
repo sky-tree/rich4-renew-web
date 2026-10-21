@@ -28,7 +28,15 @@ jobs:
         run: npm ci
 
       - name: Run TypeScript type check
-        run: npx tsc --noEmit
+        run: |
+          npx tsc --noEmit
+          npx tsc --noEmit -p tsconfig.e2e.json
+
+      - name: Install and test real Nginx routing, MIME and authentication
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nginx
+          npm run test:nginx
 
       - name: Run unit & security regression tests (asset-free mode)
         run: npm test

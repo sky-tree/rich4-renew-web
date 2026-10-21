@@ -7,6 +7,7 @@
   "license": "GPL-3.0-or-later",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "preview": "vite preview --host 127.0.0.1 --base=/rich4/",
     "build": "tsc --noEmit && vite build",
     "build:web": "tsc --noEmit && vite build --base=/rich4/",
     "audit:assets": "node scripts/audit-assets.mjs",
@@ -16,9 +17,13 @@
     "release:web": "node scripts/release-web.mjs",
     "rollback:web": "node scripts/release-web.mjs rollback",
     "test": "vitest run",
+    "test:nginx": "node scripts/test-nginx.mjs",
     "test:e2e": "playwright test",
     "test:e2e:code": "playwright test tests/e2e/smoke-code-only.spec.ts",
     "test:e2e:full": "playwright test tests/e2e/full-gameplay.spec.ts",
+    "test:e2e:renderer": "playwright test tests/e2e/renderer-composition.spec.ts",
+    "test:e2e:release": "E2E_NGINX=1 playwright test tests/e2e/release-cycle.spec.ts --project=desktop-chrome",
+    "test:e2e:complete": "E2E_COMPLETE=1 playwright test tests/e2e/complete-game.spec.ts --project=desktop-chrome",
     "test:e2e:benchmark": "playwright test tests/e2e/benchmark.spec.ts",
     "assets": "node scripts/link-assets.mjs"
   },

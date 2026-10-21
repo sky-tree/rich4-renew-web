@@ -1,7 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const PORT = 5173;
-const BASE_URL = process.env.E2E_BASE_URL || `http://127.0.0.1:${PORT}/`;
+const DEV = process.env.E2E_DEV_SERVER === '1';
+const BASE_URL = process.env.E2E_BASE_URL || `http://127.0.0.1:${PORT}/${DEV ? '' : 'rich4/'}`;
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -47,9 +48,9 @@ export default defineConfig({
   webServer: process.env.E2E_SKIP_SERVER
     ? undefined
     : {
-        command: 'npm run dev -- --host 127.0.0.1 --port 5173',
+        command: `npm run ${DEV ? 'dev' : 'preview'} -- --host 127.0.0.1 --port ${PORT} --strictPort`,
         url: BASE_URL,
-        reuseExistingServer: !process.env.CI,
+        reuseExistingServer: false,
         timeout: 30000,
       },
 });

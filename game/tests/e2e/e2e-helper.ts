@@ -8,6 +8,14 @@ export interface PageDiagnostics {
   uncaughtErrors: string[];
 }
 
+/** Persist passing evidence too; attachment bodies alone can be discarded by
+ * reporters such as `list`, leaving no reproducible benchmark data on disk. */
+export async function retainEvidence(testInfo: TestInfo, name: string, body: string | Buffer, contentType: string) {
+  const path = testInfo.outputPath(name);
+  writeFileSync(path, body);
+  await testInfo.attach(name, { path, contentType });
+}
+
 /**
  * Attaches diagnostics collectors to the Playwright page.
  * Sanitizes any potential TURN credentials, tokens or passwords from logs.

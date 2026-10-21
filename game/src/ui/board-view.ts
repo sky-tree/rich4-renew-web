@@ -132,8 +132,10 @@ export class BoardView {
     this.info = new InfoBubble(parent, bank);
     this.street = kbRules(game) ? new KbStreet(game, art.walkers ?? []) : null;
     if (this.street) this.street.ambient.frameInfo = (res, fr) => { const f = this.bank.board('map', res)?.[fr]; return f ? { img: f.img, ax: f.ax, ay: f.ay, w: f.w, h: f.h, scale: f.scale } : null; };
-    // Opaque: every frame covers the whole canvas, so the page need not blend it with what is behind.
-    this.ctx = this.canvas.getContext('2d', { alpha: false })!;
+    // WebGL paints below this canvas, so its HUD buffer must support transparency.
+    // Keep the default Canvas-only path opaque.
+    const wantedBackend = preferredRendererBackend();
+    this.ctx = this.canvas.getContext('2d', { alpha: wantedBackend === 'webgl' })!;
     const view = this;
     const host: FxHost = {
       bank, ctx: this.ctx,
@@ -152,10 +154,12 @@ export class BoardView {
     this.warm();
     let last = performance.now(), acc = 0;
     this.looping = true;
-    const wantedBackend = preferredRendererBackend();
     if (wantedBackend === 'webgl') {
       void createBoardRenderer(parent, 'webgl').then(r => {
         if (!this.alive) { r.dispose(); return; }
+        // BoardView already owns the complete Canvas implementation. A factory
+        // fallback must not replace it with an obscured second Canvas.
+        if (r.backend !== 'webgl') { r.dispose(); return; }
         this.expRenderer = r;
         this.rendererBackend = r.backend;
         this.expRenderer.resize(this.W, this.H, this.dpr);
@@ -1388,8 +1392,14 @@ export class BoardView {
   private draw() {
     const g = this.game, ctx = this.ctx, b = g.board;
     this.frameNo++;
+    if (this.expRenderer instanceof WebGLBoardRenderer && this.expRenderer.isContextLost()) {
+      this.expRenderer.dispose();
+      this.expRenderer = null;
+      this.rendererBackend = 'canvas';
+    }
     if (this.expRenderer) {
       this.sceneSprites.length = 0;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, this.W * this.dpr, this.H * this.dpr);
     }
     this.moveCamera();

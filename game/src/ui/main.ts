@@ -633,7 +633,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
   hud.shell = shell;
   for (const c of ty?.world.cities ?? [game]) c.animation = miniGameMode() === 0;
   // Debug handle for screenshots and tests: open any screen without playing up to it.
-  (window as unknown as { __rich4: unknown }).__rich4 = { game, hud, view, weather, ctx: () => hud.context(shell), askScreens, fxScreens, world: ty?.world,
+  (window as unknown as { __rich4: unknown }).__rich4 = { game, hud, view, weather, snapshot: () => saveGame(game), ctx: () => hud.context(shell), askScreens, fxScreens, world: ty?.world,
     ending: ty ? (winner: number) => tycoonEnding(hud.context(shell), ty.world, winner) : undefined,
     results: (winner: number) => (ty ? tycoonEnding(hud.context(shell), ty.world, winner, () => Promise.resolve(false))
       : showResults(bank!, shell, gameResults(game, winner), { mapName: mapName(game.settings.mapId), next: () => nextGame(shell, game.settings, game.players.filter(p => p.human).map(p => p.character), game.settings.mapId) })) };
