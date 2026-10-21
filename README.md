@@ -12,7 +12,9 @@
 - [`game/src/assets`](game/src/assets)：Web 资源分包清单、并发重试加载器、CDN 地址解析、按需地图离线包与作用域受限的 App Shell PWA
 - [`game/src/renderer`](game/src/renderer)：等角投影纯函数、`BoardRenderer` 抽象接口、Canvas 2D 与实验性 WebGL 着色器渲染后端
 - [`game/scripts`](game/scripts)：素材真实内容 SHA-256 审计（`audit-assets.mjs`）、Web 分包构建（`bundle-assets.mjs`）、发布校验（`verify-web.mjs`）与不可变版本原子发布/回滚（`release-web.mjs`）
-- [`deploy/nginx-rich4.conf`](deploy/nginx-rich4.conf)：Nginx `/rich4/` 子路径静态部署与缓存策略配置
+- [`deploy/nginx-rich4.conf`](deploy/nginx-rich4.conf)：独立 Nginx `/rich4/` 子路径静态部署与缓存策略配置
+- [`deploy/web-gateway-rich4.conf`](deploy/web-gateway-rich4.conf)：DevSpace Web Gateway `/rich4/` 静态路由、分级缓存与 Basic Auth 访问控制配置
+- [`deploy/rich4-ctl.sh`](deploy/rich4-ctl.sh)：VPS 版本化发布、秒级回滚、素材拉取校验与访问控制管理脚本
 - [`docs/rules`](docs/rules)：原版反汇编还原的 22 份详尽游戏规则规范
 - [`docs/plan`](docs/plan/README.md)：Rich4 Renew Web 开发计划、架构设计、里程碑与验收状态台账
 
