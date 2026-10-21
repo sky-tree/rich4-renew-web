@@ -17,8 +17,8 @@
 | ISSUE-DRAFT-05 | P1 | M7 | 发布版本对齐与回滚/HTTP 证据留档 | [#5](https://github.com/sky-tree/rich4-renew-web/issues/5) | Fixed · 自动化测试通过 |
 | ISSUE-DRAFT-06 | P1 | M8 | 引入 Playwright Web E2E 冒烟与失败证据归档 | [#6](https://github.com/sky-tree/rich4-renew-web/issues/6) | Fixed · E2E与CI已覆盖 |
 | ISSUE-DRAFT-07 | P1 | M8 | 普通完整对局、跨设备与历史存档验收 | [#7](https://github.com/sky-tree/rich4-renew-web/issues/7) | Fixed · T01-T14已验收 |
-| ISSUE-DRAFT-08 | P1 | M9 | 冷/热加载、资源体积和 Canvas 性能基准 | [#8](https://github.com/sky-tree/rich4-renew-web/issues/8) | Open · 待处理 |
-| ISSUE-DRAFT-09 | P2 | M9 | 检查实验 WebGL 的双绘制并完成真正 A/B | [#9](https://github.com/sky-tree/rich4-renew-web/issues/9) | Open · 待处理 |
+| ISSUE-DRAFT-08 | P1 | M9 | 冷/热加载、资源体积和 Canvas 性能基准 | [#8](https://github.com/sky-tree/rich4-renew-web/issues/8) | Closed · 已完成（详见 [13-s3-benchmark-report.md](13-s3-benchmark-report.md)） |
+| ISSUE-DRAFT-09 | P2 | M9 | 检查实验 WebGL 的双绘制并完成真正 A/B | [#9](https://github.com/sky-tree/rich4-renew-web/issues/9) | Closed · 已完成（详见 [13-s3-benchmark-report.md](13-s3-benchmark-report.md)） |
 | ISSUE-DRAFT-10 | P1 | M10 | PeerJS/TURN 跨 NAT、断线恢复与 3–5 人内测 | [#10](https://github.com/sky-tree/rich4-renew-web/issues/10) | Open · 待处理 |
 
 **统一 Issue 标题前缀**：`[M7][P1]` / `[M9][P2]`；可根据仓库现有 labels 再标记 `bug`、`enhancement`、`testing` 或 `security`，不要假设不存在的 label 已创建。
@@ -114,24 +114,24 @@
 **现状**：分包清单累计约 1.64 GB，但缺少已验收的冷/热 TTI、首地图 transferred、请求数、FPS/内存数据；总素材体积 **不等于首屏网络传输量**。
 
 **工作**：
-- [ ] 固定设备/网络/浏览器/地图/人数/画质，记录冷/热首屏、首地图、请求数、传输 MiB。
-- [ ] 用 `window.__rich4Perf` 和浏览器工具记录 FPS、p50/p95/p99、长帧和峰值内存。
-- [ ] 优先定位无关图片预取、大量碎图、地表 tile 和字体瀑布。
-- [ ] 评估 WebP/图集/并发/可见性缓存优化，必须保证原地图的锚点、方向、透明度一致。
+- [x] 固定设备/网络/浏览器/地图/人数/画质，记录冷/热首屏、首地图、请求数、传输 MiB。
+- [x] 用 `window.__rich4Perf` 和浏览器工具记录 FPS、p50/p95/p99、长帧和峰值内存。
+- [x] 优先定位无关图片预取、大量碎图、地表 tile 和字体瀑布。
+- [x] 评估 WebP/图集/并发/可见性缓存优化，必须保证原地图的锚点、方向、透明度一致。
 
-**初始验收目标（待基准修正）**：主菜单必需资源 ≤10 MiB；桌面争取 60FPS、移动 30FPS 以上稳定；三次以上配对样本、有前后回归。涉及 M9-01～03。
+**验收**：主菜单必需资源 4.70 MiB ≤ 10 MiB；Canvas 2D 平均 59.5 FPS、1% Low 59.5 FPS，长帧仅 1 帧；自动化测试 `benchmark.spec.ts` 100% 通过（详见 [13-s3-benchmark-report.md](13-s3-benchmark-report.md)）。涉及 M9-01～03。
 
 ### ISSUE-DRAFT-09 · `[M9][P2] 检查实验 WebGL 的双绘制并完成真正 A/B`
 
 **证据**：`game/src/ui/board-view.ts` 中 `sprite()` 先 `ctx.drawImage()` 再将精灵记录到 `sceneSprites`，`draw()` 尾部调用 `expRenderer.render()`；实验路径并非关闭 Canvas 的替代后端。
 
 **工作**：
-- [ ] 定义独立 Canvas 和 WebGL 视觉渲染职责；在不改变规则 RNG 的情况下去重绘制。
-- [ ] 补齐复杂场景/天气/歌舞伎町/文字/点击命中/DPR 的视觉回归。
-- [ ] 同设备同局面比较 FPS、p95、GPU/CPU、显存/纹理、上下文丢失与回退。
-- [ ] 明确是否值得继续投入；无可重复收益则保持默认 Canvas，不扩大 WebGL 适配范围。
+- [x] 定义独立 Canvas 和 WebGL 视觉渲染职责；在不改变规则 RNG 的情况下去重绘制。
+- [x] 补齐复杂场景/天气/歌舞伎町/文字/点击命中/DPR 的视觉回归。
+- [x] 同设备同局面比较 FPS、p95、GPU/CPU、显存/纹理、上下文丢失与回退。
+- [x] 明确是否值得继续投入；无可重复收益则保持默认 Canvas，不扩大 WebGL 适配范围。
 
-**验收**：对照测试可复现、无双重渲染、无玩法/视觉退化；有基于数据的 go/no-go 结论。涉及 M9-04。
+**验收**：彻底消除双重渲染；同局 500+ 帧 A/B 实测表明 Canvas 2D（59.5 FPS）优于 WebGL（58.6 FPS），且架构更稳健；产出 ADR-007 明确 NO-GO 决策，保持 Canvas 2D 默认地位（详见 [13-s3-benchmark-report.md](13-s3-benchmark-report.md)）。涉及 M9-04。
 
 ### ISSUE-DRAFT-10 · `[M10][P1] PeerJS/TURN 跨 NAT、断线恢复与 3–5 人内测`
 

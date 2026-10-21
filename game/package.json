@@ -19,6 +19,7 @@
     "test:e2e": "playwright test",
     "test:e2e:code": "playwright test tests/e2e/smoke-code-only.spec.ts",
     "test:e2e:full": "playwright test tests/e2e/full-gameplay.spec.ts",
+    "test:e2e:benchmark": "playwright test tests/e2e/benchmark.spec.ts",
     "assets": "node scripts/link-assets.mjs"
   },
   "devDependencies": {

@@ -195,4 +195,108 @@ describe('WebGLBoardRenderer lifecycle, LRU texture eviction, context loss & fal
     expect(r.backend).toBe('canvas');
     r.dispose();
   });
+
+  it('eliminates double-rendering between Canvas 2D and WebGL pipeline (Issue #9)', async () => {
+    // Verify that WebGLBoardRenderer renders ground + sprites exclusively,
+    // allowing Canvas 2D to act purely as an overlay without duplicate sprite draws.
+    const mockGL = {
+      BLEND: 1,
+      SRC_ALPHA: 2,
+      ONE_MINUS_SRC_ALPHA: 3,
+      COLOR_BUFFER_BIT: 4,
+      TEXTURE_2D: 5,
+      RGBA: 6,
+      UNSIGNED_BYTE: 7,
+      VERTEX_SHADER: 0x8b31,
+      FRAGMENT_SHADER: 0x8b30,
+      COMPILE_STATUS: 0x8b81,
+      ARRAY_BUFFER: 0x8892,
+      DYNAMIC_DRAW: 0x88e8,
+      FLOAT: 0x1406,
+      TRIANGLES: 0x0004,
+      clearColor: vi.fn(),
+      enable: vi.fn(),
+      blendFunc: vi.fn(),
+      viewport: vi.fn(),
+      clear: vi.fn(),
+      createShader: vi.fn(() => ({})),
+      shaderSource: vi.fn(),
+      compileShader: vi.fn(),
+      getShaderParameter: vi.fn(() => true),
+      deleteShader: vi.fn(),
+      createProgram: vi.fn(() => ({})),
+      attachShader: vi.fn(),
+      linkProgram: vi.fn(),
+      useProgram: vi.fn(),
+      deleteProgram: vi.fn(),
+      getAttribLocation: vi.fn(() => 0),
+      getUniformLocation: vi.fn(() => ({})),
+      uniform2f: vi.fn(),
+      uniform1i: vi.fn(),
+      uniform1f: vi.fn(),
+      createBuffer: vi.fn(() => ({})),
+      bindBuffer: vi.fn(),
+      bufferData: vi.fn(),
+      deleteBuffer: vi.fn(),
+      enableVertexAttribArray: vi.fn(),
+      vertexAttribPointer: vi.fn(),
+      drawArrays: vi.fn(),
+      createTexture: vi.fn(() => ({})),
+      bindTexture: vi.fn(),
+      texParameteri: vi.fn(),
+      texImage2D: vi.fn(),
+      deleteTexture: vi.fn(),
+      readPixels: vi.fn(),
+    };
+
+    const hostCanvas = {
+      className: '',
+      width: 800,
+      height: 600,
+      style: {} as Record<string, string>,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      getContext: vi.fn((kind: string) => (kind === 'webgl2' ? mockGL : null)),
+      remove: vi.fn(),
+    };
+
+    vi.stubGlobal('document', {
+      createElement: () => hostCanvas,
+    });
+
+    const host = { append: vi.fn() } as unknown as HTMLElement;
+    const renderer = new WebGLBoardRenderer({ maxTextures: 16 });
+    await renderer.mount(host);
+
+    const scene: RenderScene = {
+      camera: { x: 100, y: 100, rot: 0, zoom: 1 },
+      ground: {} as CanvasImageSource,
+      worldSize: 2304,
+      sprites: [
+        {
+          id: 'test-sprite-1',
+          image: {} as CanvasImageSource,
+          screenX: 200,
+          screenY: 300,
+          width: 64,
+          height: 64,
+          anchorX: 32,
+          anchorY: 64,
+          scale: 1,
+          layer: 0,
+        },
+      ],
+    };
+
+    renderer.render(scene, 1);
+    // Draw call count must equal 1 ground quad + 1 sprite quad = 2
+    expect(renderer.drawCallCount()).toBe(2);
+    expect(mockGL.drawArrays).toHaveBeenCalledTimes(2);
+
+    // Canvas styling verification: WebGL canvas sits under Canvas 2D with pointer-events: none
+    expect(hostCanvas.style.pointerEvents).toBe('none');
+    expect(hostCanvas.style.position).toBe('absolute');
+
+    renderer.dispose();
+  });
 });

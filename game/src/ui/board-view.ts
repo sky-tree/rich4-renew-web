@@ -1189,8 +1189,6 @@ export class BoardView {
     const s = this.zoom * f.scale;
     let img = tint !== undefined ? this.bank.tint(archive, res, f, frame, tint) : f.img;
     if (frozen) img = this.bank.frozen(archive, res, f, frame);
-    this.ctx.imageSmoothingEnabled = f.scale !== 1;
-    this.ctx.drawImage(img, sx - f.ax * s, sy - f.ay * s, f.w * s, f.h * s);
     if (this.expRenderer) {
       this.sceneSprites.push({
         id: `${archive}/${res}/${frame}/${tint ?? ''}/${frozen ? 'f' : ''}`,
@@ -1204,6 +1202,9 @@ export class BoardView {
         scale: f.scale,
         layer: this.sceneSprites.length,
       });
+    } else {
+      this.ctx.imageSmoothingEnabled = f.scale !== 1;
+      this.ctx.drawImage(img, sx - f.ax * s, sy - f.ay * s, f.w * s, f.h * s);
     }
   }
 
@@ -1387,13 +1388,19 @@ export class BoardView {
   private draw() {
     const g = this.game, ctx = this.ctx, b = g.board;
     this.frameNo++;
-    if (this.expRenderer) this.sceneSprites.length = 0;
+    if (this.expRenderer) {
+      this.sceneSprites.length = 0;
+      ctx.clearRect(0, 0, this.W * this.dpr, this.H * this.dpr);
+    }
     this.moveCamera();
 
-    // 1. Ground: the whole texture under one affine transform (08 §4.3), kept drawn in chunks (`GroundCache`).
+    // 1. Ground: when WebGL is active, WebGLBoardRenderer renders the ground in its shader pipeline.
+    // In Canvas 2D mode, GroundCache renders tiles directly (Issue #9: eliminates double-rendering).
     const { a, b: bb, c, d } = this.basis();
     const e = this.W / 2 - a * this.cam.x - c * this.cam.y, f = this.H * this.fy - bb * this.cam.x - d * this.cam.y;
-    try { this.drawGround(ctx, e, f); } catch (err) { this.oops('ground', err); }
+    if (!this.expRenderer) {
+      try { this.drawGround(ctx, e, f); } catch (err) { this.oops('ground', err); }
+    }
     ctx.setTransform(a * this.dpr, bb * this.dpr, c * this.dpr, d * this.dpr, e * this.dpr, f * this.dpr);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
