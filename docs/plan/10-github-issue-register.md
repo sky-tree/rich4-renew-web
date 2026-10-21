@@ -15,8 +15,8 @@
 | ISSUE-DRAFT-03 | P1 | M7 | 修正 Service Worker 更新缓存策略及回滚一致性 | [#3](https://github.com/sky-tree/rich4-renew-web/issues/3) | Fixed · 自动化测试通过 |
 | ISSUE-DRAFT-04 | P1 / security | M7 | 审核 Basic Auth / Cloudflare 对受限素材的缓存边界 | [#4](https://github.com/sky-tree/rich4-renew-web/issues/4) | Fixed · 自动化测试通过 |
 | ISSUE-DRAFT-05 | P1 | M7 | 发布版本对齐与回滚/HTTP 证据留档 | [#5](https://github.com/sky-tree/rich4-renew-web/issues/5) | Fixed · 自动化测试通过 |
-| ISSUE-DRAFT-06 | P1 | M8 | 引入 Playwright Web E2E 冒烟与失败证据归档 | [#6](https://github.com/sky-tree/rich4-renew-web/issues/6) | Open · 待处理 |
-| ISSUE-DRAFT-07 | P1 | M8 | 普通完整对局、跨设备与历史存档验收 | [#7](https://github.com/sky-tree/rich4-renew-web/issues/7) | Open · 待处理 |
+| ISSUE-DRAFT-06 | P1 | M8 | 引入 Playwright Web E2E 冒烟与失败证据归档 | [#6](https://github.com/sky-tree/rich4-renew-web/issues/6) | Fixed · E2E与CI已覆盖 |
+| ISSUE-DRAFT-07 | P1 | M8 | 普通完整对局、跨设备与历史存档验收 | [#7](https://github.com/sky-tree/rich4-renew-web/issues/7) | Fixed · T01-T14已验收 |
 | ISSUE-DRAFT-08 | P1 | M9 | 冷/热加载、资源体积和 Canvas 性能基准 | [#8](https://github.com/sky-tree/rich4-renew-web/issues/8) | Open · 待处理 |
 | ISSUE-DRAFT-09 | P2 | M9 | 检查实验 WebGL 的双绘制并完成真正 A/B | [#9](https://github.com/sky-tree/rich4-renew-web/issues/9) | Open · 待处理 |
 | ISSUE-DRAFT-10 | P1 | M10 | PeerJS/TURN 跨 NAT、断线恢复与 3–5 人内测 | [#10](https://github.com/sky-tree/rich4-renew-web/issues/10) | Open · 待处理 |

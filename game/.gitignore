@@ -6,3 +6,5 @@ public/assets/
 rich4-assets.tar*
 release/
 .cache/
+test-results/
+playwright-report/

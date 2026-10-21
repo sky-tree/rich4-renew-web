@@ -16,9 +16,13 @@
     "release:web": "node scripts/release-web.mjs",
     "rollback:web": "node scripts/release-web.mjs rollback",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:code": "playwright test tests/e2e/smoke-code-only.spec.ts",
+    "test:e2e:full": "playwright test tests/e2e/full-gameplay.spec.ts",
     "assets": "node scripts/link-assets.mjs"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/node": "^22.18.11",
     "typescript": "5.9.3",
     "vite": "7.1.12",

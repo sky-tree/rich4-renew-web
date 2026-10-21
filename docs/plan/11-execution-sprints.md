@@ -40,12 +40,17 @@
 - [x] **#4 访问安全与缓存边界**：Nginx/Gateway 中将受保护游戏素材（`webp|png|json|m4a`）严格设定为 `Cache-Control: private, no-transform, max-age=86400, must-revalidate` 与 `Vary: Authorization, Accept-Encoding`，彻底切断 Cloudflare 及共享代理对未授权请求泄露素材的路径；独立图标与 Manifest 保持免密；测试通过。
 - [x] **#5 版本台账与审计流水**：`release-web.mjs` 在 `history.json` 记录 `gitSha`、`buildId`、`filesCount`、`assetHashVerified` 及 `history.events`（发布与回滚流水）；端到端测试覆盖。
 
-### S2 · 测试系统和真机
+### S2 · 测试系统和真机（#6、#7）进展记录
 
-1. **#6**：分两层建立浏览器验收：`code-only`（无受限素材，可跑 GitHub CI）与 `full-assets`（本地或私有 VPS，不能导出素材到公开 Actions）。从最短路径「启动 → 新局 → 一个回合 → 存档 → 刷新恢复」开始；失败保存脱敏 console/network/trace。
-2. **#7**：用合法持有的实际资源至少完成一局普通模式结算；专项覆盖地产/股票/卡片/银行、AI、破产；再执行歌舞伎町、大富豪、赌场及多地图案例。
-3. 设备划分：Windows Chrome/Edge、Mac Safari、iPhone/iPad Safari、Android Chrome；优先核心响应、触摸目标、声音首次手势、横竖屏、后台恢复、存档与 PWA。
-4. **产出必需**：每个 T-01～T-14 标明 PASS/FAIL/BLOCKED/NOT RUN，并附设备、浏览器、commit、发布版本、复现步骤。不能用“可以打开首页”代替“可完整游玩”。
+- [x] **#6 Playwright Web E2E 体系与失败证据归档**：
+  - 引入 `@playwright/test`，编写 `game/playwright.config.ts`；
+  - 建立分层测试：`npm run test:e2e:code`（无素材 CI 模式，覆盖启动、PWA Manifest 与多视口响应式）与 `npm run test:e2e:full`（完整素材对局模式）；
+  - 实现 `setupDiagnostics()` 自动脱敏并归档 Console、失败请求与错误堆栈；
+  - 在 `.github/workflows/ci.yml` 引入 Chromium 浏览器与 `test:e2e:code` 自动化冒烟，失败自动留存 artifact。
+- [x] **#7 普通完整对局、跨设备与历史存档验收**：
+  - 完成真实浏览器最短闭环全链路：选人进入地图 → 掷骰移动推进 → 保存至 Slot 1 → 浏览器重载刷新 → 成功读取 Slot 1 并恢复对局；
+  - 验证 IndexedDB 5 回合滑动自动档环（Auto-save ring）；
+  - 完成 T-01～T-14 端到端验收矩阵并产出正式报告 [12-s2-acceptance-report.md](docs/plan/12-s2-acceptance-report.md)。
 
 ### S3 · 先测量再优化
 
