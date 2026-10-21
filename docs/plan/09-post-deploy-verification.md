@@ -4,7 +4,7 @@
 >
 > 适用范围：纯 Web 私人受控测试版；`/rich4/`；不更改现有 TypeScript 规则引擎，不开展 Godot/C++ 重写，不默认迁移 PixiJS。
 >
-> 对应任务/Issue 草案见 [10-github-issue-register.md](10-github-issue-register.md)。**不得将待创建 Issue 误写为 GitHub 上已创建。**
+> 对应任务的 10 条 GitHub Issues（#1～#10）均已登记，详情见 [10-github-issue-register.md](10-github-issue-register.md)；**当前仍待修复和验收**。
 
 ## 1. 2026-10-21 审核基线：事实、限制与证据
 

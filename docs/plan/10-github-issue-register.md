@@ -1,29 +1,29 @@
 # 10 · GitHub Issue 登记台账（M7–M10）
 
-> 2026-10-21 审核快照。**注意：下列 ISSUE-DRAFT-xx 是本地计划编号，不是 GitHub Issue # 号码。**
+> 2026-10-21 初次审计与 Issues 登记。**ISSUE-DRAFT-xx 是文档内部稳定追踪 ID；实际 GitHub Issue # 与链接见下表。**
 >
-> 审核时仓库 `sky-tree/rich4-renew-web` 无已登记 Issues。本轮尝试 GitHub 连接器 `create_issue` 返回 HTTP 403（`Resource not accessible by integration`），因此暂存完整待提交草案，不得声称已创建；恢复 Issues 写权限后逐项提交，将实际 # 编号/URL 填入右表。
+> GitHub App 仓库授权及仓库 Issues 功能开启后，以下 10 条工单已经创建。创建 Issue 不等于问题得到修复，也不等于功能通过验收。
 >
 > 不在 GitHub Issue、复现步骤、截图或附件中发布 Basic Auth 密码、TURN 凭据、个人存档/聊天记录。严重的实际可利用漏洞应走私有安全报告渠道，而非公开操作细节。
 
 ## 1. 追踪表
 
-| 草案编号 | 优先级 | 阶段 | 标题（可直接粘贴 GitHub Issue） | GitHub Issue | 状态 |
+| 追踪 ID | 优先级 | 阶段 | 工单标题 | GitHub Issue | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| ISSUE-DRAFT-01 | P1 | M7 | 修复 VPS 版本回滚入口与实机回滚验收 | — | **待创建（403）** |
-| ISSUE-DRAFT-02 | P1 | M7 | 修复 PWA 图标缺失与 Web Manifest MIME | — | **待创建（403）** |
-| ISSUE-DRAFT-03 | P1 | M7 | 修正 Service Worker 更新缓存策略及回滚一致性 | — | **待创建（403）** |
-| ISSUE-DRAFT-04 | P1 / security | M7 | 审核 Basic Auth / Cloudflare 对受限素材的缓存边界 | — | **待创建（403）** |
-| ISSUE-DRAFT-05 | P1 | M7 | 发布版本对齐与回滚/HTTP 证据留档 | — | **待创建（403）** |
-| ISSUE-DRAFT-06 | P1 | M8 | 引入 Playwright Web E2E 冒烟与失败证据归档 | — | **待创建（403）** |
-| ISSUE-DRAFT-07 | P1 | M8 | 普通完整对局、跨设备与历史存档验收 | — | **待创建（403）** |
-| ISSUE-DRAFT-08 | P1 | M9 | 冷/热加载、资源体积和 Canvas 性能基准 | — | **待创建（403）** |
-| ISSUE-DRAFT-09 | P2 | M9 | 检查实验 WebGL 的双绘制并完成真正 A/B | — | **待创建（403）** |
-| ISSUE-DRAFT-10 | P1 | M10 | PeerJS/TURN 跨 NAT、断线恢复与 3–5 人内测 | — | **待创建（403）** |
+| ISSUE-DRAFT-01 | P1 | M7 | 修复 VPS 版本回滚入口与实机回滚验收 | [#1](https://github.com/sky-tree/rich4-renew-web/issues/1) | Open · 待处理 |
+| ISSUE-DRAFT-02 | P1 | M7 | 修复 PWA 图标缺失与 Web Manifest MIME | [#2](https://github.com/sky-tree/rich4-renew-web/issues/2) | Open · 待处理 |
+| ISSUE-DRAFT-03 | P1 | M7 | 修正 Service Worker 更新缓存策略及回滚一致性 | [#3](https://github.com/sky-tree/rich4-renew-web/issues/3) | Open · 待处理 |
+| ISSUE-DRAFT-04 | P1 / security | M7 | 审核 Basic Auth / Cloudflare 对受限素材的缓存边界 | [#4](https://github.com/sky-tree/rich4-renew-web/issues/4) | Open · 待处理 |
+| ISSUE-DRAFT-05 | P1 | M7 | 发布版本对齐与回滚/HTTP 证据留档 | [#5](https://github.com/sky-tree/rich4-renew-web/issues/5) | Open · 待处理 |
+| ISSUE-DRAFT-06 | P1 | M8 | 引入 Playwright Web E2E 冒烟与失败证据归档 | [#6](https://github.com/sky-tree/rich4-renew-web/issues/6) | Open · 待处理 |
+| ISSUE-DRAFT-07 | P1 | M8 | 普通完整对局、跨设备与历史存档验收 | [#7](https://github.com/sky-tree/rich4-renew-web/issues/7) | Open · 待处理 |
+| ISSUE-DRAFT-08 | P1 | M9 | 冷/热加载、资源体积和 Canvas 性能基准 | [#8](https://github.com/sky-tree/rich4-renew-web/issues/8) | Open · 待处理 |
+| ISSUE-DRAFT-09 | P2 | M9 | 检查实验 WebGL 的双绘制并完成真正 A/B | [#9](https://github.com/sky-tree/rich4-renew-web/issues/9) | Open · 待处理 |
+| ISSUE-DRAFT-10 | P1 | M10 | PeerJS/TURN 跨 NAT、断线恢复与 3–5 人内测 | [#10](https://github.com/sky-tree/rich4-renew-web/issues/10) | Open · 待处理 |
 
 **统一 Issue 标题前缀**：`[M7][P1]` / `[M9][P2]`；可根据仓库现有 labels 再标记 `bug`、`enhancement`、`testing` 或 `security`，不要假设不存在的 label 已创建。
 
-## 2. 待提交 Issue 正文
+## 2. GitHub Issue 正文存档（与已创建工单对应）
 
 ### ISSUE-DRAFT-01 · `[M7][P1] 修复 VPS 版本回滚入口与实机回滚验收`
 
@@ -148,7 +148,7 @@
 
 ## 3. 创建与维护规程
 
-1. 恢复 GitHub App/连接器对该仓库的 **Issues: Read and write** 权限后，从 ISSUE-DRAFT-01 起创建，避免重复创建；创建前先列出现有 Issues。
-2. 标题采用 `[M7][P1]` 规范，正文引用 `docs/plan/09-post-deploy-verification.md` 的验收标准。
-3. 写回实际 `#number` 和 URL，状态改为 Open / In Progress / Fixed / Verified / Closed；关闭时附 PR、commit、CI、浏览器与实机证据。
+1. **登记完成**：ISSUE-DRAFT-01～10 对应 GitHub [#1](https://github.com/sky-tree/rich4-renew-web/issues/1)～[#10](https://github.com/sky-tree/rich4-renew-web/issues/10)，均为 Open，后续不要重复创建。
+2. 标题使用 `[M7][P1]` 等里程碑/优先级前缀；Issue 的验收依据参见 `docs/plan/09-post-deploy-verification.md`。
+3. 开发过程中跟踪 Open / In Progress / Fixed / Verified / Closed；关闭时附 PR、commit、CI、浏览器与实机证据。
 4. 不以“已创建 Issue”代替已修复；不以“GitHub CI green”代替真实素材/联机/性能验收。

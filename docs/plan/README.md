@@ -29,7 +29,7 @@
 | [07-acceptance-and-quality.md](07-acceptance-and-quality.md) | 核心回归、指标、验收报告模板 | PR、阶段验收 |
 | [08-risks-and-decisions.md](08-risks-and-decisions.md) | 风险台账、决策记录、变更治理 | 架构评审、上游同步 |
 | [09-post-deploy-verification.md](09-post-deploy-verification.md) | M7–M10 线上修复、浏览器/真机验收、性能与联机放行标准 | 当前后续开发与验收执行 |
-| [10-github-issue-register.md](10-github-issue-register.md) | 本轮发现的问题和可直接提交的 GitHub Issue 草案 | 问题分派、核验、权限恢复后登记 |
+| [10-github-issue-register.md](10-github-issue-register.md) | 已创建的 GitHub Issues #1～#10 及原始问题证据和验收清单 | 跟踪 M7–M10 修复与实机验收 |
 
 ## 1. 一页结论
 
@@ -67,6 +67,6 @@
 1. **M7 先修已定位的问题**：修正 `rich4-ctl.sh` 回滚入口、缺失 PWA 图标、Manifest MIME、Service Worker 缓存策略；核查认证下的 Cloudflare 缓存。已经有 HTTPS 测试版，但尚未做真实回滚验收。
 2. **M8 完整浏览器游戏验收**：引入 Playwright 并进行真实一局结算、历史存档恢复、Windows/Mac/iPhone/iPad/Android 真机测试（T-01～T-14）。
 3. **M9/M10 数据驱动优化和联机**：记录冷/热启动、首地图流量、帧时间/内存，保留 Canvas 为默认；在跨 NAT PeerServer/TURN 长局通过后才扩大受控内测。
-4. **工单现状**：本轮 GitHub 连接器创建 Issues 返回 403，待确认权限后根据 [10-github-issue-register.md](10-github-issue-register.md) 的 10 条草案登记，**不得将草案当成已创建的 Issue**。
+4. **工单现状**：GitHub Issues 已启用、访问权限已验证；[M7–M10 的 #1～#10 已正式创建](https://github.com/sky-tree/rich4-renew-web/issues)。工单目前待处理，不等同于问题已修复。
 
 **实测快照（2026-10-21）**：代码 HEAD `0dcd86a`，VPS 激活 `0.6.6-66cf0b3`；`/rich4/` 经授权 200、未授权 401；地图 JSON 经授权 200、未授权 401；未知素材 404；VPS Vitest 55 文件/529 用例通过。完整浏览器对局未执行。详情及复验方法见 [09](09-post-deploy-verification.md)。
