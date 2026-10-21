@@ -7,6 +7,7 @@
 | 项目 | 记录 |
 | --- | --- |
 | 源码分支 | `codex/release-candidate-acceptance` |
+| 审核入口 | [草稿 PR #11](https://github.com/sky-tree/rich4-renew-web/pull/11)，保持未合并 |
 | 单机/部署修复基线 | `7d72a63` |
 | 当前候选源码 | `a5f27de`，修复首次入房握手并接入受控信令/短效 TURN |
 | 候选 URL | https://rich4-staging.gopeaks.club/ |
@@ -18,7 +19,7 @@
 
 候选使用独立 Origin、根路径构建与 SW `/` 作用域，和既有 `/rich4/` 的 IndexedDB、LocalStorage、SW 分离。TLS 使用该子域名独立证书。每版在切换前校验 217 个代码/壳文件及 36,109 个素材的字节摘要；素材从既有私有目录创建独立硬链接，清除候选副本中的 AppleDouble 元数据，不修改既有文件内容。
 
-本地构建使用 Node 25.9.0；VPS 既有运行时为 Node 24.21.0；CI 仍固定 Node 22。尚无本次分支的新远端 CI 结果。
+本地构建使用 Node 25.9.0；VPS 既有运行时为 Node 24.21.0；CI 固定 Node 22，远端检查结果见草稿 PR #11。远端 CI 不含私有素材、真实设备或 staging 凭据，不能替代完整素材/跨网验收。
 
 ## 五项清单
 
