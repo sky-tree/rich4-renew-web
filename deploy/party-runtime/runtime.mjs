@@ -2,11 +2,18 @@
 import { createServer } from 'node:http';
 import { PeerServer } from 'peer';
 import { makePartyConfig } from './config.mjs';
+import { sessionHandler } from './session.mjs';
 
 const secret = process.env.RICH4_TURN_SECRET;
 const publicIp = process.env.RICH4_TURN_PUBLIC_IP;
 makePartyConfig(secret, publicIp); // Fail closed before opening any listener.
-const api = createServer((request, response) => {
+const handleSession = sessionHandler(secret, async authorization => {
+  const response = await fetch('http://127.0.0.1:18184/', { headers: { authorization }, signal: AbortSignal.timeout(3000) });
+  await response.arrayBuffer();
+  return response.status === 200;
+});
+const api = createServer(async (request, response) => {
+  if (await handleSession(request, response)) return;
   response.setHeader('Cache-Control', 'private, no-store');
   response.setHeader('X-Content-Type-Options', 'nosniff');
   if (request.method !== 'GET' || request.url !== '/api/party-config') {

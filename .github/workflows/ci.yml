@@ -42,6 +42,7 @@ jobs:
         run: |
           npm test
           node --test ../deploy/party-runtime/config.test.mjs
+          node --test ../deploy/party-runtime/session.test.mjs
 
       - name: Build Web bundle (--base=/rich4/, RICH4_NO_ASSETS=1)
         env:
