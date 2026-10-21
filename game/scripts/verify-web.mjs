@@ -16,6 +16,8 @@ const MIME_TYPES = {
   '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.webp': 'image/webp',
   '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
   '.m4a': 'audio/mp4',
@@ -108,18 +110,36 @@ export function simulateStaticRequest(rawUrl, distDir, publicAssetsDir, basePref
   const mime = MIME_TYPES[ext] || 'application/octet-stream';
   const isImmutable = /^assets\/((?:index|core-engine|ui-screens|vendor-peer|zh-hans)-[A-Za-z0-9_-]+\.(?:js|css)|huninn-)/.test(rel);
   const isNoCache = ['index.html', 'release-manifest.json', 'manifest.webmanifest', 'sw.js', 'assets/web-packs.json'].includes(rel);
-  const cacheControl = isNoCache
-    ? 'no-cache, must-revalidate'
-    : isImmutable
-      ? 'public, max-age=31536000, immutable'
-      : 'public, max-age=86400, must-revalidate';
+  const isAppIcon = /^(favicon\.ico|icons\/)/.test(rel);
+  const isProtectedAsset = /^assets\//.test(rel) && /\.(webp|png|json|m4a)$/i.test(rel) && !isImmutable;
+
+  let cacheControl;
+  let vary;
+  if (isNoCache) {
+    cacheControl = 'no-cache, no-store, must-revalidate, max-age=0';
+  } else if (isImmutable) {
+    cacheControl = 'public, max-age=31536000, immutable';
+  } else if (isAppIcon) {
+    cacheControl = 'public, max-age=604800';
+  } else if (isProtectedAsset) {
+    // Restricted game assets: strictly private to prevent CDN / shared-proxy leaks (Issue #4)
+    cacheControl = 'private, no-transform, max-age=86400, must-revalidate';
+    vary = 'Authorization, Accept-Encoding';
+  } else {
+    cacheControl = 'public, max-age=86400, must-revalidate';
+  }
+
+  const headers = {
+    'content-type': mime,
+    'cache-control': cacheControl,
+    'x-content-type-options': 'nosniff',
+  };
+  if (vary) headers['vary'] = vary;
+  if (rel === 'sw.js') headers['service-worker-allowed'] = cleanPrefix ? `${cleanPrefix}/` : '/';
+
   return {
     status: 200,
-    headers: {
-      'content-type': mime,
-      'cache-control': cacheControl,
-      'x-content-type-options': 'nosniff',
-    },
+    headers,
     body: readFileSync(filePath),
   };
 }
@@ -155,11 +175,37 @@ export function runHttpSmokeTestSync(distDir, publicAssetsDir, basePrefix = '/ri
         throw new Error(`Expected no-cache Cache-Control on ${ref}`);
       }
       checks.push(`GET ${cleanPrefix}/${ref} -> 200 (${rBundle.headers['content-type']}, no-cache)`);
+    } else if (/^(favicon\.ico|icons\/)/.test(ref)) {
+      if (!rBundle.headers['cache-control']?.includes('public')) {
+        throw new Error(`Expected public Cache-Control on standalone icon ${ref}`);
+      }
+      checks.push(`GET ${cleanPrefix}/${ref} -> 200 (${rBundle.headers['content-type']}, public icon)`);
     } else {
       if (!rBundle.headers['cache-control']?.includes('immutable')) {
         throw new Error(`Expected immutable Cache-Control on ${ref}`);
       }
       checks.push(`GET ${cleanPrefix}/${ref} -> 200 (${rBundle.headers['content-type']}, immutable)`);
+    }
+  }
+
+  // Issue #2: strictly verify PWA Manifest icons exist and are non-empty
+  const manifestWebPath = join(distDir, 'manifest.webmanifest');
+  if (existsSync(manifestWebPath)) {
+    const pwaManifest = JSON.parse(readFileSync(manifestWebPath, 'utf8'));
+    if (!Array.isArray(pwaManifest.icons) || pwaManifest.icons.length === 0) {
+      throw new Error(`manifest.webmanifest must define at least one icon`);
+    }
+    for (const icon of pwaManifest.icons) {
+      const iconRel = icon.src.replace(/^\.\//, '');
+      const iconPath = join(distDir, iconRel);
+      if (!existsSync(iconPath) || statSync(iconPath).size === 0) {
+        throw new Error(`manifest.webmanifest references missing or empty icon: ${icon.src} (${iconPath})`);
+      }
+      const rIcon = simulateStaticRequest(`${cleanPrefix}/${iconRel}`, distDir, publicAssetsDir, basePrefix);
+      if (rIcon.status !== 200) {
+        throw new Error(`Icon ${icon.src} returned HTTP status ${rIcon.status}`);
+      }
+      checks.push(`PWA icon valid: ${icon.src} (${icon.sizes}, ${icon.type}, ${statSync(iconPath).size} bytes)`);
     }
   }
 
@@ -172,7 +218,10 @@ export function runHttpSmokeTestSync(distDir, publicAssetsDir, basePrefix = '/ri
     if (!swText.includes('./assets/index-') || !swText.includes('.js') || !swText.includes('.css')) {
       throw new Error(`Service Worker sw.js is missing build-time injected JS/CSS precache list`);
     }
-    checks.push(`GET ${cleanPrefix}/sw.js -> 200 (Service Worker App Shell + JS/CSS precache, no-cache)`);
+    if (!swText.includes('./icons/icon-192.png') || !swText.includes('./icons/icon-512.png')) {
+      throw new Error(`Service Worker sw.js is missing standalone PWA icons in precache list`);
+    }
+    checks.push(`GET ${cleanPrefix}/sw.js -> 200 (Service Worker App Shell + JS/CSS/Icon precache, no-cache)`);
   }
 
   const r404 = simulateStaticRequest(`${cleanPrefix}/assets/does-not-exist-9999.png`, distDir, publicAssetsDir, basePrefix);
@@ -185,6 +234,18 @@ export function runHttpSmokeTestSync(distDir, publicAssetsDir, basePrefix = '/ri
     ? join(distDir, 'assets')
     : publicAssetsDir;
   const hasAssets = Boolean(resolvedAssetsDir && existsSync(join(resolvedAssetsDir, 'maps/maps.json')));
+
+  if (hasAssets) {
+    // Issue #4: strictly verify protected game assets return private cache and Vary: Authorization
+    const rMapJson = simulateStaticRequest(`${cleanPrefix}/assets/maps/maps.json`, distDir, resolvedAssetsDir, basePrefix);
+    if (rMapJson.status !== 200 || !rMapJson.headers['cache-control']?.includes('private')) {
+      throw new Error(`Expected private Cache-Control on game assets to prevent CDN leaks, got: ${rMapJson.headers['cache-control']}`);
+    }
+    if (!rMapJson.headers['vary']?.includes('Authorization')) {
+      throw new Error(`Expected Vary: Authorization on protected assets, got: ${rMapJson.headers['vary']}`);
+    }
+    checks.push(`GET ${cleanPrefix}/assets/maps/maps.json -> 200 (private, no-transform, Vary: Authorization)`);
+  }
 
   if (requireAssets && !hasAssets) {
     throw new Error(

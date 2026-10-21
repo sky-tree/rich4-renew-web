@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { defineConfig } from 'vite';
 
@@ -36,16 +36,28 @@ export default defineConfig({
       name: 'rich4-emit-pwa-shell',
       writeBundle(options, bundle) {
         const outDir = options.dir || 'dist';
-        // Ensure manifest.webmanifest is present even when RICH4_NO_ASSETS=1 skips public/ copy
+        // Ensure manifest.webmanifest and app shell icons are present even when RICH4_NO_ASSETS=1 skips public/ copy
         if (process.env.RICH4_NO_ASSETS) {
           const manifestSrc = new URL('./public/manifest.webmanifest', import.meta.url);
           if (existsSync(manifestSrc)) {
             writeFileSync(join(outDir, 'manifest.webmanifest'), readFileSync(manifestSrc));
           }
+          const faviconSrc = new URL('./public/favicon.ico', import.meta.url);
+          if (existsSync(faviconSrc)) {
+            writeFileSync(join(outDir, 'favicon.ico'), readFileSync(faviconSrc));
+          }
+          const iconsDir = join(outDir, 'icons');
+          if (!existsSync(iconsDir)) mkdirSync(iconsDir, { recursive: true });
+          for (const iconName of ['icon-192.png', 'icon-512.png', 'icon-32.png', 'icon.svg']) {
+            const iconSrc = new URL(`./public/icons/${iconName}`, import.meta.url);
+            if (existsSync(iconSrc)) {
+              writeFileSync(join(iconsDir, iconName), readFileSync(iconSrc));
+            }
+          }
         }
 
         // Collect all emitted JS and CSS bundles so the Service Worker pre-caches the
-        // complete minimal runnable App Shell (fixing P1-4).
+        // complete minimal runnable App Shell (fixing P1-4 & Issue #2).
         const shellAssets = Object.keys(bundle)
           .filter((fileName) => /\.(?:js|css)$/i.test(fileName))
           .sort()
@@ -55,6 +67,9 @@ export default defineConfig({
           './',
           './index.html',
           './manifest.webmanifest',
+          './favicon.ico',
+          './icons/icon-192.png',
+          './icons/icon-512.png',
           ...shellAssets,
         ];
 

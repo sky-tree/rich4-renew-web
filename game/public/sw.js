@@ -22,6 +22,9 @@ const SHELL_URLS = /* __RICH4_SW_PRECACHE__ */ [
   './',
   './index.html',
   './manifest.webmanifest',
+  './favicon.ico',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -108,14 +111,30 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Build bundles (JS/CSS/Fonts) and opt-in offline map assets: Cache-first, then network.
-  if (url.pathname.includes('/assets/') || url.pathname.endsWith('manifest.webmanifest')) {
-    const isCodeOrFontBundle = /\.(?:js|css|woff2?)$/i.test(url.pathname);
+  // Web Manifest: Network-first with cached fallback so updates/rollbacks take effect immediately (Issue #3).
+  if (url.pathname.endsWith('manifest.webmanifest')) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(SHELL_CACHE_NAME).then((c) => c.put(req, copy)).catch(() => undefined);
+          }
+          return res;
+        })
+        .catch(() => caches.match(req)),
+    );
+    return;
+  }
+
+  // Build bundles (JS/CSS/Fonts), standalone App Shell icons, and opt-in offline map assets: Cache-first, then network.
+  if (url.pathname.includes('/assets/') || url.pathname.includes('/icons/') || url.pathname.endsWith('favicon.ico')) {
+    const isStaticShellAsset = /\.(?:js|css|woff2?|png|svg|ico)$/i.test(url.pathname);
     event.respondWith(
       caches.match(req).then((cached) => {
         if (cached) return cached;
         return fetch(req).then((res) => {
-          if (res.ok && isCodeOrFontBundle) {
+          if (res.ok && isStaticShellAsset) {
             const copy = res.clone();
             caches.open(SHELL_CACHE_NAME).then((c) => c.put(req, copy)).catch(() => undefined);
           }

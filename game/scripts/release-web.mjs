@@ -108,9 +108,27 @@ export function deployRelease({
   const previous = history.current;
   history.current = id;
   history.releases = [
-    { id, buildId: manifest.buildId, deployedAt: new Date().toISOString(), previous },
+    {
+      id,
+      buildId: manifest.buildId,
+      gitSha: manifest.gitSha,
+      deployedAt: new Date().toISOString(),
+      previous,
+      filesCount: Array.isArray(manifest.files) ? manifest.files.length : 0,
+      assetHashVerified: !codeOnly,
+    },
     ...history.releases.filter(r => r.id !== id),
   ].slice(0, 20);
+  history.events = [
+    {
+      type: 'deploy',
+      id,
+      buildId: manifest.buildId,
+      previous,
+      at: new Date().toISOString(),
+    },
+    ...(Array.isArray(history.events) ? history.events : []),
+  ].slice(0, 50);
   writeHistory(releasesDir, history);
 
   return { id, previous, activeLink, targetDir, manifest, preChecks, postChecks };
@@ -143,6 +161,15 @@ export function rollbackRelease({ appsRoot, toReleaseId }) {
   atomicSwitchSymlink(targetDir, activeLink);
 
   history.current = targetId;
+  history.events = [
+    {
+      type: 'rollback',
+      from: rolledFrom,
+      to: targetId,
+      at: new Date().toISOString(),
+    },
+    ...(Array.isArray(history.events) ? history.events : []),
+  ].slice(0, 50);
   writeHistory(releasesDir, history);
 
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));

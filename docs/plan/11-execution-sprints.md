@@ -32,6 +32,14 @@
 5. **修 SW 与更新路径（#3）**：诊断实际 `sw.js` 缓存头（审计时为 4 小时）以及 Nginx + Cloudflare 最终行为；设计 A→B→A、已有 SW、无 SW、离线恢复等测试。
 6. **单 PR 单目的 + CI**：#1、#4、#2/#3 分别提交；#5 主要记录部署自动化与版本审计。合并后仅在明确授权窗口部署测试环境、执行冒烟与受控回滚。完成后回填 #1～#5 验收证据并关闭对应问题。
 
+### S1 · 发布可靠性（#1、#2、#3、#4、#5）进展记录
+
+- [x] **#1 回滚入口**：修复 `deploy/rich4-ctl.sh` 调用 `scripts/release-web.mjs rollback`，增加安全正则校验防路径穿越；`game/package.json` 补充 `rollback:web`；隔离沙盒测试（A→B→A→B）全部通过，已合并至 `main`。
+- [x] **#2 PWA 图标与 Manifest**：由 `game/scripts/generate-icons.mjs` 原生渲染合规标准的独立 192/512/32 PNG 图标与 SVG/ICO，直接入库；`manifest.webmanifest` 引用正确相对路径；Nginx 补齐 `.webmanifest` 标准 MIME；`verify-web.mjs` 增加图标存在性与字节大小强断言；测试通过。
+- [x] **#3 SW 缓存与回滚一致性**：Nginx 将 `sw.js` 设为 `no-cache, no-store, must-revalidate, max-age=0` 与 `Service-Worker-Allowed: /rich4/`；`sw.js` 针对 `manifest.webmanifest` 实行 Network-First 策略并预缓存独立图标；测试通过。
+- [x] **#4 访问安全与缓存边界**：Nginx/Gateway 中将受保护游戏素材（`webp|png|json|m4a`）严格设定为 `Cache-Control: private, no-transform, max-age=86400, must-revalidate` 与 `Vary: Authorization, Accept-Encoding`，彻底切断 Cloudflare 及共享代理对未授权请求泄露素材的路径；独立图标与 Manifest 保持免密；测试通过。
+- [x] **#5 版本台账与审计流水**：`release-web.mjs` 在 `history.json` 记录 `gitSha`、`buildId`、`filesCount`、`assetHashVerified` 及 `history.events`（发布与回滚流水）；端到端测试覆盖。
+
 ### S2 · 测试系统和真机
 
 1. **#6**：分两层建立浏览器验收：`code-only`（无受限素材，可跑 GitHub CI）与 `full-assets`（本地或私有 VPS，不能导出素材到公开 Actions）。从最短路径「启动 → 新局 → 一个回合 → 存档 → 刷新恢复」开始；失败保存脱敏 console/network/trace。
