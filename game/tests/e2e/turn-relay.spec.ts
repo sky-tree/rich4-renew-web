@@ -9,10 +9,17 @@ test('authenticated short-lived TURN credentials carry a forced-relay data chann
   expect(response.ok()).toBe(true);
   expect(response.headers()['cache-control']).toContain('no-store');
   const config = await response.json();
+  const credentialSecondsRemaining = Math.round((config.expiresAt - Date.now()) / 1000);
   await page.goto('./');
   const result = await page.evaluate(async cfg => {
     const left = new RTCPeerConnection({ iceServers: cfg.iceServers, iceTransportPolicy: 'relay' });
     const right = new RTCPeerConnection({ iceServers: cfg.iceServers, iceTransportPolicy: 'relay' });
+    const errors: number[] = [], candidates: string[] = [];
+    for (const pc of [left, right]) {
+      pc.addEventListener('icecandidateerror', event => errors.push(event.errorCode));
+      pc.addEventListener('icecandidate', event => { if (event.candidate) candidates.push(event.candidate.type ?? 'unknown'); });
+    }
+    const received: number[] = [];
     const gather = (pc: RTCPeerConnection) => new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('Relay gathering timed out')), 15000);
       // A blocked alternative STUN/TCP probe may keep gathering after a usable
@@ -23,7 +30,6 @@ test('authenticated short-lived TURN credentials carry a forced-relay data chann
     });
     try {
       const channel = left.createDataChannel('relay-check');
-      const received: number[] = [];
       const delivered = new Promise<void>((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error('Forced relay echo timed out')), 20000);
         right.ondatachannel = event => { event.channel.onmessage = message => event.channel.send(message.data); };
@@ -44,11 +50,14 @@ test('authenticated short-lived TURN credentials carry a forced-relay data chann
         report.push({ localType: stats.get(pair?.localCandidateId)?.candidateType,
           remoteType: stats.get(pair?.remoteCandidateId)?.candidateType });
       }
-      return { received, report };
+      return { received, report, errors, candidates, error: null };
+    } catch (error) {
+      return { received, report: [], errors, candidates, error: error instanceof Error ? error.message : 'Unknown relay failure' };
     } finally { left.close(); right.close(); }
   }, config);
+  await retainEvidence(testInfo, 'turn-relay.json', JSON.stringify({ timestamp: new Date().toISOString(),
+    credentialSecondsRemaining, mode: 'Two real WebRTC clients on one Mac through remote TURN; not cross-NAT gameplay', ...result }, null, 2), 'application/json');
+  expect(result.error).toBeNull();
   expect(result.received).toEqual(Array.from({ length: 20 }, (_, i) => i));
   for (const pair of result.report) { expect(pair.localType).toBe('relay'); expect(pair.remoteType).toBe('relay'); }
-  await retainEvidence(testInfo, 'turn-relay.json', JSON.stringify({ timestamp: new Date().toISOString(),
-    mode: 'Two real WebRTC clients on one Mac through remote TURN; not cross-NAT gameplay', ...result }, null, 2), 'application/json');
 });

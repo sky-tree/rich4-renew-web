@@ -1,0 +1,185 @@
+{
+  "date": "2026-10-22",
+  "candidate": "cf587f4",
+  "before": {
+    "applicationJoin": "failed before gameplay; no outage injected",
+    "ice": [
+      {
+        "errors": [
+          486,
+          486,
+          486,
+          486,
+          486,
+          486,
+          486,
+          486,
+          486
+        ],
+        "candidateTypes": [
+          "host",
+          "srflx",
+          "relay",
+          "host",
+          "srflx",
+          "host",
+          "srflx",
+          "host",
+          "srflx",
+          "host",
+          "host",
+          "relay",
+          "srflx",
+          "srflx"
+        ]
+      },
+      {
+        "errors": [
+          486,
+          486
+        ],
+        "candidateTypes": [
+          "host",
+          "srflx",
+          "host",
+          "relay",
+          "srflx",
+          "relay",
+          "relay",
+          "host",
+          "srflx"
+        ]
+      }
+    ],
+    "signaling": [
+      {
+        "opened": 6,
+        "closed": 2,
+        "errors": 0,
+        "incoming": {
+          "OPEN": 5,
+          "OFFER": 2,
+          "CANDIDATE": 7,
+          "EXPIRE": 2,
+          "ID-TAKEN": 1,
+          "ANSWER": 1
+        },
+        "httpErrors": []
+      },
+      {
+        "opened": 4,
+        "closed": 3,
+        "errors": 0,
+        "incoming": {
+          "OPEN": 3,
+          "ANSWER": 1,
+          "CANDIDATE": 2,
+          "EXPIRE": 1,
+          "ID-TAKEN": 1
+        },
+        "httpErrors": []
+      }
+    ],
+    "interpretation": "ICE error 486 indicates allocation quota exhaustion; direct path failure remains separately unproven"
+  },
+  "independentRelayProbe": {
+    "earlier": "relay gathering timeout",
+    "later": {
+      "timestamp": "2026-10-22T03:41:08.938Z",
+      "credentialSecondsRemaining": 3599,
+      "mode": "Two real WebRTC clients on one Mac through remote TURN; not cross-NAT gameplay",
+      "received": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "report": [
+        {
+          "localType": "relay",
+          "remoteType": "relay"
+        },
+        {
+          "localType": "relay",
+          "remoteType": "relay"
+        }
+      ],
+      "errors": [],
+      "candidates": [
+        "relay",
+        "relay"
+      ],
+      "error": null
+    },
+    "interpretation": "Intermittent capacity/path behavior; probe pass does not establish app or physical-device recovery"
+  },
+  "serverChecks": {
+    "udpAndTcp3478Listening": true,
+    "ufwRulesPresent": true,
+    "secretFilesAndLiveRuntimeAgree": true,
+    "macTcp3478Connects": true
+  },
+  "quotaChange": {
+    "user": {
+      "before": 4,
+      "after": 16
+    },
+    "total": {
+      "before": 16,
+      "after": 32
+    },
+    "ports": "unchanged: UDP 49160-49200",
+    "bandwidthLimits": "unchanged",
+    "rollback": "Private mode-600 prior configuration retained on VPS; restore it and restart only staging TURN",
+    "restart": "rich4-staging-turn.service only"
+  },
+  "afterChangeAcceptance": {
+    "gameplayHarness": "failed at room join before outage injection",
+    "ice": [
+      {
+        "errors": [
+          486,
+          486
+        ],
+        "candidateTypes": [
+          "relay",
+          "relay",
+          "relay",
+          "relay",
+          "relay",
+          "relay"
+        ]
+      },
+      {
+        "errors": [],
+        "candidateTypes": [
+          "relay",
+          "relay",
+          "relay",
+          "relay",
+          "relay",
+          "relay"
+        ]
+      }
+    ],
+    "interpretation": "486 still observed after quota change; cannot claim this fixes all join failures",
+    "unwrappedLobbyControl": "existing party-lobby test passed membership and bidirectional chat",
+    "unwrappedGameBootstrapControl": "also failed at join; transport instrumentation alone is not established as cause"
+  }
+}

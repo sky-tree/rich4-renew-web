@@ -9,11 +9,11 @@
 | 源码分支 | `codex/release-candidate-acceptance` |
 | 审核入口 | [草稿 PR #11](https://github.com/sky-tree/rich4-renew-web/pull/11)，保持未合并 |
 | 单机/部署修复基线 | `7d72a63` |
-| 当前候选源码 | `78d7fc9`，首页显示实际构建编号并提供更新提示；中继预检查修复为 `b5c3ce7`；座位及迟到摘要修复为 `f7e8528` |
+| 当前候选源码 | `cf587f4`，房主确认答案、静默断线检测及图片重试；首页显示实际构建编号 |
 | 候选 URL | https://rich4-staging.gopeaks.club/ |
-| 强制中继验收入口 | https://rich4-staging.gopeaks.club/?relay=1&rc=78d7fc9 |
+| 强制中继验收入口 | https://rich4-staging.gopeaks.club/?relay=1&rc=cf587f4 |
 | 服务器 | 既有 DevSpace VPS `216.23.82.22`，`ssh gopeaks` 登录 deploy，通过 sudo 使用 devspace |
-| 候选活动链接 | `/srv/devspace/repos/rich4-runtime/rich4-staging` → `rich4-staging-releases/78d7fc9` |
+| 候选活动链接 | `/srv/devspace/repos/rich4-runtime/rich4-staging` → `rich4-staging-releases/cf587f4` |
 | 既有版本 | `/srv/devspace/repos/rich4-runtime/rich4` 仍指向 `rich4-releases/66cf0b3`，原路由未修改 |
 | 进程 | `rich4-staging.service`、`rich4-staging-party.service`、`rich4-staging-turn.service`，均由 systemd 管理 |
 
@@ -55,7 +55,11 @@ PeerJS BinaryPack 将显式 `prev: undefined` 编码为 `null`，房主验证器
 
 随后同版本实体复测 **FAIL**：手机仍缺素材；断网 20 秒恢复后，手机等待电脑、电脑等待手机。用户报告断网前日期、资金一致，未确认至少 20 次掷骰。私有截图显示侧栏、日历和对话框破图，截图时刻未核实同步。见 [实体反馈](evidence/2026-10-21-rc/physical-mobile-78d7fc9.json)。旧版在自动 ICE 下保持通道开启、仅丢弃客人出站消息 20 秒，复现互相等待及状态分歧；此前主动关闭连接的测试未覆盖该故障。该诊断只要求 1 天，不能记为 20 天验收，见 [修复前证据](evidence/2026-10-21-rc/party-silent-outage-before-78d7fc9.json)。同次强制中继诊断在入房阶段失败，未进入断网步骤；此路径仍待排查。
 
-新增修复：客人答案等待房主确认才写入回放并推进规则，重连重发未确认答案，重复包返回已提交答案；同一题多个等待者共享结果。每 3 秒心跳、15 秒无入站数据关闭旧通道并走现有重连，网络恢复时重建路径，旧通道尚未清理可重试。运行时配置刷新失败不会终止重连循环。图片增加有限重试，精灵加载失败不再永久缓存为空；本地 Chromium/WebKit 6 项图片测试通过。线上旧版 WebKit 未复现实体缺图，故图片根因及实机修复效果仍未确认。
+`cf587f4` 新增修复：客人答案等待房主确认才写入回放并推进规则，重连重发未确认答案，重复包返回已提交答案；同一题多个等待者共享结果。每 3 秒心跳、15 秒无入站数据关闭旧通道并走现有重连，网络恢复时重建路径，旧通道尚未清理可重试。运行时配置刷新失败不会终止重连循环。图片增加有限重试，精灵加载失败不再永久缓存为空；本地 Chromium/WebKit 6 项图片测试通过。线上旧版 WebKit 未复现实体缺图，故图片根因及实机修复效果仍未确认。Node 22.23.4 下 65 文件 / 557 单测和应用、E2E 类型检查通过；[CI](https://github.com/sky-tree/rich4-renew-web/actions/runs/39717218728) 通过。独立候选切换前校验 217 壳文件及 36,109 素材，原生产链接仍为 `66cf0b3`。
+
+`cf587f4` 线上 Chrome/WebKit 共 12 项版本及图片检查通过，包含真实 SW 侧栏加载与注入破图后的恢复，见 [图片恢复记录](evidence/2026-10-21-rc/mobile-recovery-cf587f4.json)。游戏断网专项多次在入房阶段失败，未执行故障注入，不能判定修复后恢复通过。独立大厅成员/聊天测试通过；不包装 WebRTC 的同流程开局对照也曾失败，因此不能归因于测试插桩。浏览器记录 ICE 486（分配配额不足）；候选 TURN 用户/总配额从 4/16 调为 16/32，带宽和 UDP 端口范围未改、保留私有回滚配置，但随后仍出现 486 和入房失败，不能标为已解决，见 [中继诊断](evidence/2026-10-21-rc/turn-quota-cf587f4.json)。
+
+另确认首页大厅异步关闭竞态：离开首页时仍在建立的 Peer、连接或共享大厅持有者可在关闭后留下。新增回归先复现两个泄漏，修复在每个等待阶段后检查关闭状态并销毁迟到资源，三项生命周期测试通过。其对实体入房及配额的影响仍需部署后验证。
 
 `78d7fc9` 的 [CI](https://github.com/sky-tree/rich4-renew-web/actions/runs/39703675343) 通过。线上 Chrome / iPhone WebKit 模拟共 6 项版本专项检查通过：显示编号与真实发布清单一致、手机横竖屏边界、新版提示及手动刷新、清单不可用时保留编号；刷新后合成本地存储标记仍在。真实版本检查保留 SW；模拟清单响应测试单独禁用 SW，以避免 WebKit 绕过 Playwright 路由（初次因此失败，诊断确认模拟路由调用次数为 0）。这不是实际发布 A→B 的线上 SW 更新或存档兼容性证明。
 
@@ -98,7 +102,8 @@ npx playwright test tests/e2e/party-lobby.spec.ts tests/e2e/turn-relay.spec.ts \
 新增专项复测（认证与素材使用上述私有环境开关）：
 
 ```sh
-E2E_PARTY_GAME=1 npx playwright test tests/e2e/party-gameplay.spec.ts --project=desktop-chrome
+E2E_PARTY_GAME=1 E2E_NETWORK_BLACKHOLE=1 E2E_FORCE_RELAY=0 \
+npx playwright test tests/e2e/party-gameplay.spec.ts --project=desktop-chrome
 E2E_WEBKIT=1 E2E_REMOTE_ASSETS=1 npx playwright test tests/e2e/mobile-assets.spec.ts --project=ios-webkit
 ```
 

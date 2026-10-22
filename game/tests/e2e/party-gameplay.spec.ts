@@ -12,6 +12,7 @@ test('two clients preserve authoritative state through gameplay and transport re
   const minimumDays = Number(process.env.E2E_PARTY_DAYS || 20);
   const forceRelay = process.env.E2E_FORCE_RELAY !== '0';
   let completed = false;
+  let clocksInstalled = false;
   let candidate = 'unknown';
   const codec = readFileSync(new URL('../../node_modules/peerjs-js-binarypack/dist/binarypack.mjs', import.meta.url), 'utf8');
   const unpackName = codec.match(/export \{([\w$]+) as unpack,/)?.[1];
@@ -21,6 +22,7 @@ test('two clients preserve authoritative state through gameplay and transport re
     localStorage.setItem('rich4.speed', '2');
     localStorage.setItem('rich4.minigame', '1');
     const peers: RTCPeerConnection[] = [];
+    const iceErrors: number[] = [], candidateTypes: string[] = [];
     let silentUntil = 0, suppressed = 0;
     const packets: unknown[] = [];
     const observe = (data: unknown, direction: string) => {
@@ -44,17 +46,23 @@ test('two clients preserve authoritative state through gameplay and transport re
       return channel;
     };
     const NativePeer = window.RTCPeerConnection;
-    window.RTCPeerConnection = class extends NativePeer {
-      constructor(...args: ConstructorParameters<typeof RTCPeerConnection>) {
-        super(...args); peers.push(this);
-        this.addEventListener('datachannel', event => instrument(event.channel));
-      }
-      override createDataChannel(...args: Parameters<RTCPeerConnection['createDataChannel']>) { return instrument(super.createDataChannel(...args)); }
-    };
+    const createChannel = NativePeer.prototype.createDataChannel;
+    NativePeer.prototype.createDataChannel = function (...args) { return instrument(createChannel.apply(this, args)); };
+    // Preserve the native prototype: webrtc-adapter patches it after this init
+    // script, and a subclass changes the adapter's feature-detection surface.
+    window.RTCPeerConnection = new Proxy(NativePeer, { construct(target, args) {
+      const pc = new target(...args as ConstructorParameters<typeof RTCPeerConnection>);
+      peers.push(pc);
+      pc.addEventListener('datachannel', event => instrument(event.channel));
+      pc.addEventListener('icecandidateerror', event => iceErrors.push(event.errorCode));
+      pc.addEventListener('icecandidate', event => { if (event.candidate) candidateTypes.push(event.candidate.type ?? 'unknown'); });
+      return pc;
+    } });
     // Only transport observation/fault injection; never mutate the rules state.
     (window as any).__partyTransportTest = {
       connected: () => peers.filter(pc => pc.connectionState === 'connected').length,
       states: () => peers.map(pc => ({ connection: pc.connectionState, ice: pc.iceConnectionState })),
+      ice: () => ({ errors: iceErrors, candidateTypes }),
       packets: () => packets,
       silence: (ms: number) => { silentUntil = Date.now() + ms; },
       suppressed: () => suppressed,
@@ -63,6 +71,25 @@ test('two clients preserve authoritative state through gameplay and transport re
   });
   const guest = await context.newPage();
   const clients = [page, guest];
+  const signaling = clients.map(p => {
+    const summary = { opened: 0, closed: 0, errors: 0, incoming: {} as Record<string, number>, httpErrors: [] as number[], pageErrors: [] as unknown[] };
+    p.on('pageerror', error => summary.pageErrors.push({ name: error.name,
+      category: ['Illegal invocation', 'Maximum call stack', 'Cannot read properties', 'not a function'].find(text => error.message.includes(text)) ?? 'other',
+      frames: error.stack?.split('\n').slice(1, 4) }));
+    p.on('websocket', socket => {
+      summary.opened++;
+      socket.on('close', () => summary.closed++);
+      socket.on('socketerror', () => summary.errors++);
+      socket.on('framereceived', frame => {
+        try {
+          const type = JSON.parse(String(frame.payload)).type;
+          if (typeof type === 'string' && /^[A-Z-]{1,30}$/.test(type)) summary.incoming[type] = (summary.incoming[type] ?? 0) + 1;
+        } catch { /* No raw frames, IDs, tokens or chat are retained. */ }
+      });
+    });
+    p.on('response', response => { if (new URL(response.url()).pathname.startsWith('/peerjs') && response.status() >= 400) summary.httpErrors.push(response.status()); });
+    return summary;
+  });
   const advance = async () => {
     await Promise.all(clients.map(p => p.clock.fastForward(1000)));
     // Let actual network messages run between animation-clock ticks.
@@ -73,8 +100,13 @@ test('two clients preserve authoritative state through gameplay and transport re
   const checkpoint = async (phase: string) => {
     await expect(page.locator('.go')).toBeVisible();
     const host = await snapshot(page);
-    await expect.poll(async () => JSON.stringify(await snapshot(guest)), { timeout: 15000 }).toBe(JSON.stringify(host));
     const hash = createHash('sha256').update(JSON.stringify(host)).digest('hex');
+    await expect.poll(async () => {
+      // Host acknowledgement adds a real network round trip. Let the guest
+      // finish its queued animation while the host remains at a manual turn.
+      if (clocksInstalled) await guest.clock.fastForward(200);
+      return createHash('sha256').update(JSON.stringify(await snapshot(guest))).digest('hex');
+    }, { timeout: 15000 }).toBe(hash);
     checkpoints.push({ days: host.game.daysElapsed, hash, phase });
     return host;
   };
@@ -104,7 +136,8 @@ test('two clients preserve authoritative state through gameplay and transport re
     await expect(page.locator('.go')).toBeVisible({ timeout: 30000 });
     await expect(guest.locator('.party-bar')).toBeVisible({ timeout: 30000 });
     await checkpoint('initial');
-    for (const p of clients) { await p.clock.install(); await p.clock.pauseAt(new Date()); }
+    for (const p of clients) { await p.clock.install(); await p.clock.pauseAt(await p.evaluate(() => Date.now() + 1000)); }
+    clocksInstalled = true;
     await Promise.all(clients.map(p => p.locator('.party-bar [data-v="auto"]').click()));
     let days = 0;
     for (let tick = 0; tick < 4000 && days < minimumDays; tick++) {
@@ -166,12 +199,16 @@ test('two clients preserve authoritative state through gameplay and transport re
   } finally {
     await retainEvidence(testInfo, 'party-gameplay.json', JSON.stringify({ candidate,
       status: completed ? 'passed' : 'failed', minimumDays,
-      mode: `Two Chromium pages on one Mac, ${forceRelay ? 'forced remote relay' : 'automatic ICE policy'}, UI autopilot and accelerated animation clocks`,
+      mode: `Two Chromium pages on one Mac, ${forceRelay ? 'forced remote relay' : 'remote signaling and automatic ICE'}, UI autopilot and accelerated animation clocks`,
       fault: `Closed actual guest RTCPeerConnection${process.env.E2E_NETWORK_BLACKHOLE === '1' ? ' plus twenty-second outbound-message blackhole' : ''}; not a physical network outage`,
       equality: 'Every serialized SaveData field except savedAt; SHA-256 checkpoints', checkpoints,
       guestTransport: await guest.evaluate(() => (window as any).__partyTransportTest?.states()).catch(() => []),
+      signaling,
+      ice: await Promise.all(clients.map(p => p.evaluate(() => (window as any).__partyTransportTest?.ice()).catch(() => null))),
       packets: await Promise.all(clients.map(p => p.evaluate(() => (window as any).__partyTransportTest?.packets()).catch(() => []))),
-      finalState: await Promise.all(clients.map(async p => ({ state: await snapshot(p).catch(() => null), waiting: await p.locator('.pt-waiting').textContent().catch(() => null) }))) }, null, 2), 'application/json');
+      finalState: await Promise.all(clients.map(async p => ({ state: await snapshot(p).catch(() => null),
+        waiting: await p.locator('.pt-waiting').textContent().catch(() => null),
+        waitingVisible: await p.locator('.pt-waiting').isVisible().catch(() => false) }))) }, null, 2), 'application/json');
     await guest.close();
   }
 });

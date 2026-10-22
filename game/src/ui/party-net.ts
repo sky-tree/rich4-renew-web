@@ -646,7 +646,9 @@ export class Lobby {
       if (!this.holder && !this.toHolder?.open) {
         // Join the list's holder, else become it.
         this.peer ??= await open();
+        if (this.closed) { this.peer?.destroy(); this.peer = null; return; }
         const c = this.peer && await connect(this.peer, LOBBY);
+        if (this.closed) { c?.close(); this.peer?.destroy(); this.peer = null; return; }
         if (c) {
           this.toHolder = c;
           c.on('data', d => {
@@ -657,6 +659,7 @@ export class Lobby {
           c.on('close', () => { this.toHolder = null; });
         } else {
           const h = await open(LOBBY);
+          if (this.closed) { h?.destroy(); return; }
           if (h) {
             this.holder = h;
             h.on('connection', c2 => {
