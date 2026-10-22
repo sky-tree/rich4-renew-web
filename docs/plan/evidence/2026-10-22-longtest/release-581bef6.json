@@ -1,0 +1,322 @@
+{
+  "date": "2026-10-22",
+  "release": {
+    "version": "0.6.7-longtest.1",
+    "gitSha": "581bef6",
+    "tag": "v0.6.7-longtest.1",
+    "entry": "https://rich4-staging.gopeaks.club/",
+    "visibleTitle": "v0.6.7-longtest.1 · 581bef6",
+    "acceptedBehaviorBaseline": "0a1ed20",
+    "rulesAndProtocolVersion": "0.6.6",
+    "productionUnchanged": "66cf0b3"
+  },
+  "deployment": {
+    "shellFilesVerified": 217,
+    "privateAssetHashesVerified": 36109,
+    "corruptedAssets": [],
+    "activeRelease": "rich4-staging-releases/581bef6",
+    "partyRuntimeConfig": "unchanged from default-relay 0a1ed20",
+    "servicesActiveAndBootEnabled": [
+      "rich4-staging.service",
+      "rich4-staging-party.service",
+      "rich4-staging-turn.service"
+    ],
+    "finalSyntheticRoomCleanup": "party and TURN services restarted after browser verification; authenticated HTTP checks passed afterward"
+  },
+  "verification": {
+    "appTypes": "passed",
+    "e2eTypes": "passed, including a5a68d8 test harness change",
+    "buildCi": "https://github.com/sky-tree/rich4-renew-web/actions/runs/39735508385",
+    "buildCiStatus": "success",
+    "browserVersionAndLayout": {
+      "status": "passed",
+      "count": 6,
+      "browsers": [
+        "desktop Chromium",
+        "iPhone WebKit emulation"
+      ],
+      "scope": [
+        "compiled version and revision",
+        "portrait and landscape bounds",
+        "explicit refresh with localStorage marker retained",
+        "unavailable manifest retains running revision"
+      ]
+    },
+    "postCleanupHttp": {
+      "candidate": "581bef6",
+      "version": "0.6.7-longtest.1",
+      "manifest": "passed",
+      "serviceWorker": "version matches, no-store",
+      "runtimePolicy": "relay",
+      "timestamp": "2026-10-22T06:49:40.484Z",
+      "mode": "Live staging session auth; credentials and cookies kept in memory only",
+      "records": [
+        {
+          "path": "/assets/index-BxhvGso0.js",
+          "identity": "basic",
+          "status": 200,
+          "noSetCookie": true
+        },
+        {
+          "path": "/",
+          "identity": "session",
+          "status": 200,
+          "noBasicChallenge": true
+        },
+        {
+          "path": "/api/party-config",
+          "identity": "session",
+          "status": 200,
+          "noBasicChallenge": true
+        },
+        {
+          "path": "/assets/maps/maps.json",
+          "identity": "session",
+          "status": 200,
+          "noBasicChallenge": true
+        },
+        {
+          "path": "/assets/maps/maps.json",
+          "identity": "anonymous",
+          "status": 401,
+          "noBasicChallenge": true
+        },
+        {
+          "path": "/assets/maps/maps.json",
+          "identity": "tampered",
+          "status": 401,
+          "noBasicChallenge": true
+        },
+        {
+          "path": "/?relay=1",
+          "identity": "anonymous",
+          "status": 401,
+          "noBasicChallenge": true
+        },
+        {
+          "path": "/api/session",
+          "identity": "anonymous",
+          "status": 200,
+          "noBasicChallenge": true
+        }
+      ],
+      "formLogin": 303
+    },
+    "initialLobbyStatisticsFailure": {
+      "status": "failed",
+      "builds": [
+        "581bef6",
+        "581bef6",
+        "581bef6"
+      ],
+      "mode": "3 browser pages on one Mac, server default policy; not separate physical networks",
+      "runtimePolicy": "relay",
+      "transport": [
+        {
+          "policies": [
+            "relay"
+          ],
+          "observedPolicies": [
+            "all",
+            "relay"
+          ],
+          "pairs": [
+            {
+              "localType": "relay",
+              "remoteType": "relay"
+            },
+            {
+              "localType": "relay",
+              "remoteType": "relay"
+            }
+          ],
+          "errors": []
+        },
+        {
+          "policies": [
+            "relay"
+          ],
+          "observedPolicies": [
+            "all",
+            "relay"
+          ],
+          "pairs": [
+            {}
+          ],
+          "errors": []
+        },
+        {
+          "policies": [
+            "relay"
+          ],
+          "observedPolicies": [
+            "all",
+            "relay"
+          ],
+          "pairs": [
+            {
+              "localType": "relay",
+              "remoteType": "relay"
+            }
+          ],
+          "errors": []
+        }
+      ],
+      "memberCounts": [
+        3,
+        3,
+        3
+      ],
+      "notices": [
+        null,
+        null,
+        null
+      ],
+      "allClientChat": true
+    },
+    "lobbyObservationCorrection": {
+      "commit": "a5a68d8",
+      "change": "Poll the same relay-policy and candidate-type assertions for up to 10 seconds; missing records still fail at timeout",
+      "reason": "One guest snapshot lacked candidate details after all-client chat; first run retained as failed. No physical network cause established."
+    },
+    "confirmedThreeClientLobby": {
+      "status": "passed",
+      "builds": [
+        "581bef6",
+        "581bef6",
+        "581bef6"
+      ],
+      "mode": "3 browser pages on one Mac, server default policy; not separate physical networks",
+      "runtimePolicy": "relay",
+      "transport": [
+        {
+          "policies": [
+            "relay"
+          ],
+          "observedPolicies": [
+            "all",
+            "relay"
+          ],
+          "pairs": [
+            {
+              "localType": "relay",
+              "remoteType": "relay"
+            },
+            {
+              "localType": "relay",
+              "remoteType": "relay"
+            }
+          ],
+          "errors": []
+        },
+        {
+          "policies": [
+            "relay"
+          ],
+          "observedPolicies": [
+            "all",
+            "relay"
+          ],
+          "pairs": [
+            {
+              "localType": "relay",
+              "remoteType": "relay"
+            }
+          ],
+          "errors": []
+        },
+        {
+          "policies": [
+            "relay"
+          ],
+          "observedPolicies": [
+            "all",
+            "relay"
+          ],
+          "pairs": [
+            {
+              "localType": "relay",
+              "remoteType": "relay"
+            }
+          ],
+          "errors": []
+        }
+      ],
+      "memberCounts": [
+        3,
+        3,
+        3
+      ],
+      "notices": [
+        null,
+        null,
+        null
+      ],
+      "allClientChat": true
+    }
+  },
+  "cleanup": {
+    "local": {
+      "removedGeneratedPaths": [
+        "game/dist",
+        "game/test-results",
+        "game/release",
+        "temporary/rich4-staging-7d72a63",
+        "temporary/rich4-staging-7d72a63-code.tgz",
+        "temporary/rich4-staging-a5f27de",
+        "temporary/rich4-staging-a5f27de-code.tgz",
+        "temporary/rich4-staging-f7e8528",
+        "temporary/rich4-staging-f7e8528-code.tgz",
+        "temporary/rich4-staging-78d7fc9",
+        "temporary/rich4-staging-78d7fc9-code.tgz",
+        "temporary/rich4-staging-cf587f4",
+        "temporary/rich4-staging-cf587f4-code.tgz",
+        "temporary/rich4-staging-a128f6a",
+        "temporary/rich4-staging-a128f6a-code.tgz"
+      ],
+      "stoppedServices": [
+        "Vite 5187",
+        "Vite preview 5188",
+        "Vite outage preview 61183",
+        "benchmark Nginx 5189",
+        "benchmark Nginx 5191"
+      ],
+      "sourceAssetsAndEvidencePreserved": true
+    },
+    "server": {
+      "archivedReleases": [
+        "78d7fc9",
+        "7d72a63",
+        "a5f27de",
+        "cf587f4",
+        "f7e8528"
+      ],
+      "retainedReleases": [
+        "581bef6",
+        "0a1ed20",
+        "a128f6a"
+      ],
+      "archivedLogs": [
+        "staging-access.jsonl",
+        "staging-error.log"
+      ],
+      "privateArchive": "control/longtest-581bef6-archive",
+      "removedAllowlistedTemporaryUploadFiles": 19,
+      "credentialsAssetsAndRollbackConfigurationPreserved": true
+    }
+  },
+  "sourceSync": {
+    "branch": "codex/release-candidate-acceptance",
+    "github": "origin branch",
+    "vpsSource": "/srv/devspace/repos/rich4-web",
+    "mode": "fetch and fast-forward only; main preserved; release tag identifies deployed application"
+  },
+  "limits": [
+    "Physical three-device at-least-20-dice acceptance belongs to 0a1ed20; not repeated for the version-only long-test build",
+    "New three-client transport verification runs on one Mac, not three physical networks",
+    "Long sessions, weak-network stability, five physical devices and complete matches remain unproven",
+    "TURN configuration renewal for an existing host Peer remains unproven",
+    "No new gameplay, rules, save-format or networking application changes in this release; local baseline full unit tests were not repeated, build CI passed",
+    "No private art, credentials, cookies, screenshots, traces or recordings committed"
+  ]
+}

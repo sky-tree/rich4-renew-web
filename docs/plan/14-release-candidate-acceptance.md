@@ -1,6 +1,6 @@
 # 14 · 发布候选版验收记录
 
-> 执行窗口：2026-10-21～22（Asia/Shanghai）。已授权完整候选版验收及独立测试环境。结论：仍在受控验收中，未达到扩大内测或全部 Issues 关闭的条件。
+> 执行窗口：2026-10-21～22（Asia/Shanghai）。已授权完整候选版验收及独立测试环境。当前已按用户要求转入[受控长测版](15-longtest-release.md)，完整验收尚未完成，Issues 不据此关闭。
 
 ## 发布与环境
 
@@ -9,11 +9,11 @@
 | 源码分支 | `codex/release-candidate-acceptance` |
 | 审核入口 | [草稿 PR #11](https://github.com/sky-tree/rich4-renew-web/pull/11)，保持未合并 |
 | 单机/部署修复基线 | `7d72a63` |
-| 当前候选源码 | `0a1ed20`，含默认中继、准确入房错误、静默恢复与图片重试 |
+| 当前长测源码 | `581bef6` / `v0.6.7-longtest.1`；行为基线 `0a1ed20`，本次仅更新版本标识 |
 | 候选 URL | https://rich4-staging.gopeaks.club/ |
-| 普通验收入口（默认中继） | https://rich4-staging.gopeaks.club/?rc=0a1ed20 |
+| 普通长测入口（默认中继） | https://rich4-staging.gopeaks.club/?rc=581bef6 |
 | 服务器 | 既有 DevSpace VPS `216.23.82.22`，`ssh gopeaks` 登录 deploy，通过 sudo 使用 devspace |
-| 候选活动链接 | `/srv/devspace/repos/rich4-runtime/rich4-staging` → `rich4-staging-releases/0a1ed20` |
+| 长测活动链接 | `/srv/devspace/repos/rich4-runtime/rich4-staging` → `rich4-staging-releases/581bef6` |
 | 既有版本 | `/srv/devspace/repos/rich4-runtime/rich4` 仍指向 `rich4-releases/66cf0b3`，原路由未修改 |
 | 进程 | `rich4-staging.service`、`rich4-staging-party.service`、`rich4-staging-turn.service`，均由 systemd 管理 |
 
@@ -77,7 +77,13 @@ PeerJS BinaryPack 将显式 `prev: undefined` 编码为 `null`，房主验证器
 
 `0a1ed20` 已将受控 staging 的 `/api/party-config` 默认设为 `iceTransportPolicy: relay`，普通入口无需手动 `relay=1`；保留短效凭据、现有端口和带宽上限。原生产路由不接入该 staging API。源码网络检查显示“已使用轉送伺服器聯機”，不把策略强制中继误称为网络只能中继。运行时配置回归先失败后通过；4 项运行时/会话、67 文件 / 564 单测及两份类型检查通过。发布校验 217 壳文件及 36,109 素材摘要通过，[CI](https://github.com/sky-tree/rich4-renew-web/actions/runs/39731091072) 通过。候选联机配置源码摘要与提交一致，原生产仍为 `66cf0b3`。不带 `relay=1` 的普通入口，三及五 Chromium 客户端候房/全员聊天通过；所有实际连接配置均为 relay、选中候选对均 relay/relay，未记录 ICE 错误。首次统计断言错误纳入 PeerJS 临时能力探测的默认 all 策略，测试未通过；修正为检查实际 connected 连接并单列探测策略后通过，失败与修正均保留。见 [普通入口中继证据](evidence/2026-10-21-rc/default-relay-0a1ed20.json)。另在普通入口完成至少 20 天真实时钟游戏恢复：第 21 天连接替换，第 23 天继续，第 24 天消息黑洞恢复，再继续至第 26 天；六个完整 SaveData 检查点一致，双端无 ICE 错误，见 [普通入口游戏恢复](evidence/2026-10-21-rc/party-game-default-0a1ed20.json)。
 
-用户随后回复“测试通过”，确认本次限定范围：三台设备关闭旧页面、核对 `v0.6.6 · 0a1ed20`，经普通入口入房、均看到 3 位成员并互通聊天；房主选择“只有玩家”开局，合计至少 20 次掷骰后日期/资金一致，未报告“不同步”。设备网络沿用此前识别的家宽 macOS Chrome、移动数据 iOS Safari、公共网络第二台电脑，第三台系统/浏览器未提供。此为用户报告的三设备实体行为通过，没有实体 ICE 统计或完整存档逐字段比较；本次未要求重新断网，也不能据此判定五设备、完整对局、弱网或长局 TURN 续期通过。见 [三设备实体验收](evidence/2026-10-21-rc/physical-three-device-0a1ed20.json)。候选继续固定 `0a1ed20`，草稿 PR 和剩余验收项保持开放。
+用户随后回复“测试通过”，确认本次限定范围：三台设备关闭旧页面、核对 `v0.6.6 · 0a1ed20`，经普通入口入房、均看到 3 位成员并互通聊天；房主选择“只有玩家”开局，合计至少 20 次掷骰后日期/资金一致，未报告“不同步”。设备网络沿用此前识别的家宽 macOS Chrome、移动数据 iOS Safari、公共网络第二台电脑，第三台系统/浏览器未提供。此为用户报告的三设备实体行为通过，没有实体 ICE 统计或完整存档逐字段比较；本次未要求重新断网，也不能据此判定五设备、完整对局、弱网或长局 TURN 续期通过。见 [三设备实体验收](evidence/2026-10-21-rc/physical-three-device-0a1ed20.json)。该轮验收时候选固定 `0a1ed20`，草稿 PR 和剩余验收项保持开放。
+
+## 转入受控长测（2026-10-22）
+
+按用户“清理测试环境，发布长测版本，提交代码，远程同步推送”要求发布 `v0.6.7-longtest.1 · 581bef6`。本次只更新版本标识，保留已通过三设备限定验收的行为、规则和联机协议。217 壳文件及 36,109 素材摘要校验通过；Chrome/iPhone WebKit 6 项版本布局、真实会话鉴权和三客户端普通入口成员/聊天/relay 候选对复核通过。首次三客户端统计缺失一端候选详情，整体未通过；保留该失败，测试增加最多 10 秒统计等待后复核通过，未据此认定实体网络故障。
+
+旧测试服务及本地构建输出已清理，VPS 五个旧候选和旧日志移入私有 `control/longtest-581bef6-archive`，活动目录保留 `581bef6`、`0a1ed20`、`a128f6a`。此前记录的旧候选原路径需从归档恢复后使用；回滚本次长测到 `0a1ed20` 仅需切换链接。本次未更改运行时联机配置或既有生产。验证后重启 party/TURN 清空临时房间，再次核查鉴权与服务健康。详见[长测说明](15-longtest-release.md)及[脱敏发布证据](evidence/2026-10-22-longtest/release-581bef6.json)。这不增加实体长局、弱网或五设备通过结论。
 
 ## 联机设施与私有配置
 

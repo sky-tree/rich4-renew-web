@@ -8,7 +8,7 @@
 >
 > 上游分叉基线：`bb1093863f389620fb56bc630d8b32ef9a35e901`
 
-> **2026-10-22 最新验收入口**：[14 · 发布候选版验收](14-release-candidate-acceptance.md)。以下旧基线表保留为历史快照；最新范围以 [S2](12-s2-acceptance-report.md)、[S3](13-s3-benchmark-report.md) 和候选记录为准，不能沿用全部 PASS 的旧结论。
+> **2026-10-22 最新长测入口**：[15 · 受控长测版](15-longtest-release.md)；此前验收见 [14 · 发布候选版验收](14-release-candidate-acceptance.md)。以下旧基线表保留为历史快照；最新范围以 [S2](12-s2-acceptance-report.md)、[S3](13-s3-benchmark-report.md) 和候选记录为准，不能沿用全部 PASS 的旧结论。
 
 ## 0. 使用说明与状态分类原则
 
@@ -36,6 +36,7 @@
 | [12-s2-acceptance-report.md](12-s2-acceptance-report.md) | 逐项修正的 T-01～T-14 执行范围 | 游戏与设备验收 |
 | [13-s3-benchmark-report.md](13-s3-benchmark-report.md) | 正式 Nginx 传输与原始 rAF/堆采样 | 性能复测 |
 | [14-release-candidate-acceptance.md](14-release-candidate-acceptance.md) | 独立环境、当前版本、五项清单与跨网进展 | 当前验收事实 |
+| [15-longtest-release.md](15-longtest-release.md) | 长测版本、清理范围、操作及回滚 | 当前受控长测 |
 
 ## 1. 一页结论
 
