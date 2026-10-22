@@ -27,7 +27,8 @@ function signalling(): Promise<boolean> {
 async function candidates(): Promise<Set<string>> {
   const kinds = new Set<string>();
   let pc: RTCPeerConnection;
-  try { pc = new RTCPeerConnection({ iceServers: resolvePartyNetConfig().iceServers }); } catch { return kinds; }
+  const config = resolvePartyNetConfig();
+  try { pc = new RTCPeerConnection({ iceServers: config.iceServers, iceTransportPolicy: config.iceTransportPolicy }); } catch { return kinds; }
   try {
     pc.createDataChannel('check');
     const done = new Promise<void>(resolve => {
@@ -55,6 +56,8 @@ export async function checkNetwork(): Promise<NetCheck> {
   const [server, kinds] = await Promise.all([signalling(), candidates()]);
   if (!server)
     return { ok: false, title: '連不上聯機伺服器', text: '這支手機現在連不上聯機伺服器，\n暫時無法進行多人對戰。\n請確認網路正常（公司、學校的網路可能擋住聯機），\n或換個網路再試。', retry: true };
+  if (resolvePartyNetConfig().iceTransportPolicy === 'relay' && !kinds.has('relay'))
+    return { ok: false, title: '連不上轉送伺服器', text: '目前啟用了轉送連線，但這個網路連不到轉送伺服器。\n請稍後重新檢查，或換個 Wi-Fi／行動數據網路再試。', retry: true };
   if (!kinds.has('srflx') && !kinds.has('relay'))
     return { ok: false, title: '網路不支援聯機', text: '這支手機目前的網路擋住了手機之間的連線，\n無法進行多人對戰。\n請換成其他 Wi-Fi 或行動數據再試。', retry: true };
   return kinds.has('srflx') ? { ok: true } : { ok: true, note: '你的網路只能透過轉送伺服器聯機，可能會比較慢' };
