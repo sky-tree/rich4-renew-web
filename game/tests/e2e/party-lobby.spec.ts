@@ -68,14 +68,18 @@ test(`${clientCount} real PeerJS clients see all members and exchange lobby chat
       for (const receiver of clients) await expect(receiver.locator('.pc-log')).toContainText(text);
     }
     chatCompleted = true;
-    transport = await Promise.all(clients.map(p => p.evaluate(() => (window as any).__lobbyTransport())));
-    if (forceRelay || runtimePolicy === 'relay') {
-      for (const client of transport) {
-        expect(client.policies).toEqual(['relay']);
-        expect(client.pairs.length).toBeGreaterThan(0);
-        for (const pair of client.pairs) { expect(pair.localType).toBe('relay'); expect(pair.remoteType).toBe('relay'); }
+    // A working data channel can precede getStats' selected-candidate records.
+    // Wait for observable relay pairs; missing records must still fail on timeout.
+    await expect(async () => {
+      transport = await Promise.all(clients.map(p => p.evaluate(() => (window as any).__lobbyTransport())));
+      if (forceRelay || runtimePolicy === 'relay') {
+        for (const client of transport) {
+          expect(client.policies).toEqual(['relay']);
+          expect(client.pairs.length).toBeGreaterThan(0);
+          for (const pair of client.pairs) { expect(pair.localType).toBe('relay'); expect(pair.remoteType).toBe('relay'); }
+        }
       }
-    }
+    }).toPass({ timeout: 10000, intervals: [250, 500, 1000] });
     completed = true;
   } finally {
     await retainEvidence(testInfo, 'party-lobby.json', JSON.stringify({ status: completed ? 'passed' : 'failed', builds,
