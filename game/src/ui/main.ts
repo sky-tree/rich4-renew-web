@@ -51,6 +51,7 @@ import { pickNextMap, showResults } from './results';
 import { nextSettings, recordResult, type CarriedSettings, type RunRecord } from './next-game';
 import { phrases, shrinkText } from './text';
 import { canFitOfflinePack, defaultTelemetry, downloadMapOfflinePack, initAppShellPwa, listCachedOfflineMaps, removeMapOfflinePack } from '../assets/offline-pwa';
+import { checkTitleUpdate } from './build-version';
 
 const app = document.getElementById('app')!;
 // The orientation chosen in the settings is applied at start, before the title screen is laid out.
@@ -153,12 +154,15 @@ function title() {
   app.innerHTML = `<div class="title" style="${bg ? `--title-bg:url('${abs(bg.src)}');` : ''}${tall ? `--title-bg-tall:url('${abs(tall.src)}')` : ''}">
     <div class="title-buttons">${btn('start', 1, '開始遊戲')}${party}${btn('load', 3, '讀取進度')}${btn('option', 5, '設定')}</div>
     <div class="title-note">${phrases('只需優化一下界面就是一個好遊戲，但他偏偏選擇了發售了垃圾的第五代。')}</div>
-    <div class="title-ver">v${__APP_VERSION__}</div></div>`;
+    <div class="title-ver" data-nozh data-build="${__BUILD_SHA__}">v${__APP_VERSION__} · ${__BUILD_SHA__}</div>
+    <button class="title-update" data-act="refresh" hidden>發現新版本，點此更新</button></div>`;
+  void checkTitleUpdate(app.querySelector<HTMLElement>('.title')!);
   buttonSounds(app.querySelector('.title-buttons')!, '.title-btn');
   watchParty(app.querySelector<HTMLElement>('.party-live')!);
   app.onclick = async e => {
     const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset.act;
     if (act) stopWatchingParty();
+    if (act === 'refresh') location.reload();
     if (act === 'start') newGame();
     if (act === 'party') openParty({ app, bank: bank!, maps, play: (settings, room) => start(settings, room), back: () => {} });
     if (act === 'load') {

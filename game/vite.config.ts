@@ -1,17 +1,24 @@
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { defineConfig } from 'vite';
 
 /** The app's version (package.json), shown on the title screen. */
 const version = (JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }).version;
+let buildSha = 'unknown';
+try {
+  buildSha = execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
+    cwd: new URL('.', import.meta.url), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+  }).trim();
+} catch { /* Source archives without Git still show the package version. */ }
 
 // Configurable base path for Web deployment (e.g. RICH4_BASE=/rich4/ or --base=/rich4/, defaulting to './').
 // RICH4_NO_ASSETS=1 skips copying the linked art (public/assets, over 1 GB) for quick code-only builds,
 // while still emitting the lightweight PWA App Shell files (`manifest.webmanifest` and `sw.js`).
 export default defineConfig({
   base: process.env.RICH4_BASE || './',
-  define: { __APP_VERSION__: JSON.stringify(version) },
+  define: { __APP_VERSION__: JSON.stringify(version), __BUILD_SHA__: JSON.stringify(buildSha) },
   build: {
     copyPublicDir: !process.env.RICH4_NO_ASSETS,
     rollupOptions: {
