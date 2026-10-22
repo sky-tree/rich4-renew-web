@@ -1,8 +1,10 @@
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 
 test.describe('Actual running build and optional title update', () => {
   test.skip(process.env.E2E_BUILD_VERSION !== '1', 'Requires complete private title assets');
+  const version = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;
   const sha = process.env.E2E_EXPECT_BUILD || execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
 
   test('shows the compiled revision and fits phone portrait and landscape', async ({ page }) => {
@@ -15,7 +17,7 @@ test.describe('Actual running build and optional title update', () => {
     }
     await page.goto('./');
     const label = page.locator('.title-ver');
-    await expect(label).toHaveText(new RegExp(`^v[0-9.]+ · ${sha}$`));
+    await expect(label).toHaveText(`v${version} · ${sha}`);
     await expect(label).toHaveAttribute('data-build', sha);
     await expect(page.locator('.title-update')).toBeHidden();
     for (const viewport of [{ width: 430, height: 750 }, { width: 932, height: 305 }]) {
