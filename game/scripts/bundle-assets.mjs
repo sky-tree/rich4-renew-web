@@ -78,6 +78,12 @@ if (existsSync(join(src, 'maps/remake/index.json'))) {
   for (const f of [...cards, ...tools, ...shots, 'onway/layers.json', 'onway/plane.webp', 'onway/train.webp', 'onway/sky.webp', 'onway/land.webp']) {
     if (existsSync(join(src, `maps/remake/${f}`))) copy(`maps/remake/${f}`);
   }
+  // The tools' and high-end cards' films (ui/tool-cinema.ts, tools/tycoon-art/cinema_art.py): cinema/<key>/shot-N.webp.
+  // (Missing from v0.7.0's app bundles: the films played black with broken pictures on the phone.)
+  if (existsSync(join(src, 'maps/remake/cinema'))) for (const d of readdirSync(join(src, 'maps/remake/cinema'))) {
+    if (!statSync(join(src, `maps/remake/cinema/${d}`)).isDirectory()) continue;
+    for (const f of readdirSync(join(src, `maps/remake/cinema/${d}`))) if (f.endsWith('.webp')) copy(`maps/remake/cinema/${d}/${f}`);
+  }
   // 大富翁城 (docs/rules/19): the five halls' sprites (map/1601..1645, read at run time) and the casino screens' art.
   for (let t = 0; t < 5; t++) for (let k = 1; k <= 5; k++) {
     const fj = `maps/remake/sprites/${1600 + t * 10 + k}/frames.json`;
@@ -94,6 +100,17 @@ if (existsSync(join(src, 'maps/remake/index.json'))) {
   // (Data#617, 618) and cards (Data#607, 608); its shops, houses, NPCs, walkers and pads come with its map file's sprites above.
   for (const dir of ['maps/remake/kabukicho', 'maps/remake/kabukicho/machines']) {
     if (existsSync(join(src, dir))) for (const f of readdirSync(join(src, dir))) if (f.endsWith('.webp')) copy(`${dir}/${f}`);
+  }
+  // 激情歲月 (docs/rules/24): the facility plates, the UI skin, the intro's backgrounds and the icons (maps/remake/jiqing/);
+  // its houses, facilities, walkers, street life and pads come with its map file's sprites, its cards' pictures with events/.
+  if (existsSync(join(src, 'maps/remake/jiqing'))) for (const f of readdirSync(join(src, 'maps/remake/jiqing'))) if (f.endsWith('.webp')) copy(`maps/remake/jiqing/${f}`);
+  // …and its place screens' backgrounds and hostesses (tools/tycoon-art/jq_places.py): places.json + places/NNNN/frame-XXX.webp.
+  if (existsSync(join(src, 'maps/remake/jiqing/places/places.json'))) {
+    copy('maps/remake/jiqing/places/places.json');
+    for (const d of readdirSync(join(src, 'maps/remake/jiqing/places'))) {
+      if (!/^\d{4}$/.test(d)) continue;
+      for (const f of readdirSync(join(src, `maps/remake/jiqing/places/${d}`))) if (f.endsWith('.webp')) copy(`maps/remake/jiqing/places/${d}/${f}`);
+    }
   }
   for (const n of [617, 618]) if (existsSync(join(src, `maps/remake/tools/0${n}.webp`))) copy(`maps/remake/tools/0${n}.webp`);
   for (const n of [607, 608]) if (existsSync(join(src, `maps/remake/cards/0${n}.webp`))) copy(`maps/remake/cards/0${n}.webp`);

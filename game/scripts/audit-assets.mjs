@@ -110,6 +110,32 @@ export function auditAssets(assetsDir, opts = {}) {
       }
     }
 
+    // Jiqing Suiyue (map-107) specific assets
+    if (existsSync(join(src, 'maps/remake/jiqing'))) {
+      for (const f of readdirSync(join(src, 'maps/remake/jiqing'))) {
+        if (f.endsWith('.webp')) record(`maps/remake/jiqing/${f}`, 'map-107', 'map');
+      }
+    }
+    if (existsSync(join(src, 'maps/remake/jiqing/places/places.json'))) {
+      record('maps/remake/jiqing/places/places.json', 'map-107', 'map');
+      for (const d of readdirSync(join(src, 'maps/remake/jiqing/places'))) {
+        if (!/^\d{4}$/.test(d)) continue;
+        for (const f of readdirSync(join(src, `maps/remake/jiqing/places/${d}`))) {
+          if (f.endsWith('.webp')) record(`maps/remake/jiqing/places/${d}/${f}`, 'map-107', 'map');
+        }
+      }
+    }
+
+    // Tool and high-end card cinematic films
+    if (existsSync(join(src, 'maps/remake/cinema'))) {
+      for (const d of readdirSync(join(src, 'maps/remake/cinema', { withFileTypes: true }))) {
+        if (!d.isDirectory()) continue;
+        for (const f of readdirSync(join(src, `maps/remake/cinema/${d.name}`))) {
+          if (f.endsWith('.webp')) record(`maps/remake/cinema/${d.name}/${f}`, 'core', 'core');
+        }
+      }
+    }
+
     // Finale (map-999) specific assets
     for (let t = 0; t < 5; t++) for (let k = 1; k <= 5; k++) {
       const res = 1600 + t * 10 + k;

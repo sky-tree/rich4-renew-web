@@ -4,7 +4,7 @@ import { CHARACTERS, playerName } from '../core/characters';
 import { format, today } from '../core/date';
 import { Game, SPEED } from '../core/game';
 import { nodeById } from '../core/board';
-import { loadGame, saveGame, type SaveData } from '../core/save';
+import { loadGame, reshuffleGame, saveGame, type SaveData } from '../core/save';
 import type { Answer, GameSettings } from '../core/types';
 import { ASSETS, loadMap, mapList, resolveMapOfflinePackSpec, type MapInfo } from './assets';
 import { BoardView } from './board-view';
@@ -42,7 +42,12 @@ import { prepareCityLots } from './city-lots';
 import { FINALE_MAP } from '../core/casino-rules';
 import { KB_MAP } from '../core/kabukicho';
 import { neonMode, prepareKabukicho, setNeonMode, setVehiclesMode, setWalkersMode, STREET_MODES, vehiclesMode, walkersMode } from './kabukicho'; // 歌舞伎町 (docs/rules/21)
+import { JQ_MAP, loudspeakerMode, prepareJiqingPlaces, quotesMode, setLoudspeakerMode, setQuotesMode } from './jiqing'; // 激情歲月 (docs/rules/24)
+import { applyJqTheme } from './jq-theme';
+import { setEraLine } from './era-line';
+import { playJqIntro } from './screens/jq-intro';
 import './tycoon-onway';
+import './tool-cinema'; // 道具 / 高級卡片 cinematics: wraps the tool and card use (visual only)
 import { CHAT_MODES, ChatBox, chatMode, CITY_COLORS, cityThumb, installWorldScreens, logPanel, newWorld, registerSprites, resumeWorld, setChatMode, tycoon, WorldBar } from './tycoon';
 import { setWeatherMode, WEATHER_MODES, weatherMode } from './weather';
 import { initLang, lang, LANGS, setLang } from './lang';
@@ -290,6 +295,8 @@ function newGame() {
   const b = bank!;
   const state = {
     mapId: 2, count: 4, fundIndex: 1, traffic: 0 as 0 | 1 | 2, daysLimitIndex: 0, victoryIndex: 0, landLimitIndex: 0,
+    /** 電腦難度 (core/smart-ai.ts, Game.aiLevel): 0 簡單 = the original's computer, 1 中級, 2 困難; not in 大富豪模式. */
+    aiLevel: 0 as 0 | 1 | 2,
     kind: 'orig' as MapInfo['kind'] | 'tycoon',
     slots: [{ character: 9, human: true }, { character: 4, human: false }, { character: 3, human: false }, { character: 0, human: false }],
   };
@@ -377,7 +384,8 @@ function newGame() {
         ${opt('行進方式', 'traffic', ['步行', '機車', '汽車'])}
         ${opt('土地權限', 'landLimitIndex', ['無限期', '二年', '一年', '六個月', '三個月', '一個月'])}
         ${ty ? '<p class="ng-date">遊戲時間：直到所有對手破產</p>' : `${opt('遊戲時間', 'daysLimitIndex', ['無限', '二年', '一年', '六個月', '三個月', '一個月'])}
-        ${opt('勝利條件', 'victoryIndex', ['無限', '100倍', '50倍', '10倍', '5倍', '3倍'])}`}
+        ${opt('勝利條件', 'victoryIndex', ['無限', '100倍', '50倍', '10倍', '5倍', '3倍'])}
+        ${opt('電腦難度', 'aiLevel', ['簡單', '中級', '困難'])}`}
         <p class="ng-date">開局日期 ${format(today())}</p>
       </section>
       <div class="choices ng-actions"><button class="candy ghost" data-back="1">返回</button><button class="candy yes" data-go="1">開始遊戲</button></div></div>`;
@@ -476,6 +484,7 @@ function newGame() {
       start({
         mapId: state.mapId, players, fundIndex: state.fundIndex, traffic: state.traffic, landLimitIndex: state.landLimitIndex,
         daysLimitIndex: state.daysLimitIndex, victoryIndex: state.victoryIndex, startDate: today(), seed: (Math.random() * 2 ** 32) >>> 0,
+        ...(state.aiLevel ? { aiLevel: state.aiLevel } : {}),
       });
       return;
     }
@@ -539,7 +548,12 @@ async function resume(slot: number) {
   }
   const saved = data;
   // Names of stocks and companies from the map as it is now (a city that got its own local firms later).
-  begin(saved.settings.mapId, board => { const g = loadGame(saved, board); if (!ledgerOf(g.players)) attachLedger(g.players); return g; }, true);
+  begin(saved.settings.mapId, board => {
+    const g = loadGame(saved, board);
+    reshuffleGame(g, crypto.getRandomValues(new Uint32Array(1))[0]); // issue #5: not the same dice as the last time from this save
+    if (!ledgerOf(g.players)) attachLedger(g.players);
+    return g;
+  }, true);
 }
 
 /** The loading screen (ui/loading.ts) alone on the page. */
@@ -585,6 +599,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
     await prepareCityLots(bank, mapId); // the five cities' own shops on the small lots (ui/city-lots.ts)
     if (ty || mapId === FINALE_MAP) await prepareFinale(bank); // 大富翁城's halls (docs/rules/19)
     if (mapId === KB_MAP) prepareKabukicho(bank); // 歌舞伎町's tool icons (docs/rules/21 §7.5)
+    await prepareJiqingPlaces(bank, mapId === JQ_MAP); // 激情歲月's place screens (docs/rules/24 §11.3); off on every other map
     game = make(art.board);
   } catch (e) { firstGround?.dispose(); boot.dispose(); app.innerHTML = `<div class="error">${(e as Error).message}</div>`; return; }
   if (me !== session) { firstGround?.dispose(); return; }
@@ -594,6 +609,8 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
   // The original screen (docs/rules/09 §1): toolbar over the map, the player panel and calendar beside it.
   const shell = document.createElement('main');
   shell.className = 'game';
+  setEraLine(null); // a map's own wording of the place screens: only 激情歲月's (below)
+  if (mapId === JQ_MAP) applyJqTheme(shell); // 激情歲月's skin and words (docs/rules/24 §3, §11)
   const toolbar = new Toolbar(bank);
   const stage = document.createElement('section');
   stage.className = 'stage';
@@ -639,7 +656,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
   hud.shell = shell;
   for (const c of ty?.world.cities ?? [game]) c.animation = miniGameMode() === 0;
   // Debug handle for screenshots and tests: open any screen without playing up to it.
-  (window as unknown as { __rich4: unknown }).__rich4 = { game, hud, view, weather, snapshot: () => saveGame(game), ctx: () => hud.context(shell), askScreens, fxScreens, world: ty?.world,
+  (window as unknown as { __rich4: unknown }).__rich4 = { game, hud, view, weather, room, snapshot: () => saveGame(game), ctx: () => hud.context(shell), askScreens, fxScreens, world: ty?.world,
     ending: ty ? (winner: number) => tycoonEnding(hud.context(shell), ty.world, winner) : undefined,
     results: (winner: number) => (ty ? tycoonEnding(hud.context(shell), ty.world, winner, () => Promise.resolve(false))
       : showResults(bank!, shell, gameResults(game, winner), { mapName: mapName(game.settings.mapId), next: () => nextGame(shell, game.settings, game.players.filter(p => p.human).map(p => p.character), game.settings.mapId) })) };
@@ -754,6 +771,12 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
           ...(mapId === KB_MAP ? [{ label: '街頭行人', opts: STREET_MODES, cur: () => walkersMode(), pick: (i: number) => setWalkersMode(i) },
             { label: '街頭車輛', opts: STREET_MODES, cur: () => vehiclesMode(), pick: (i: number) => setVehiclesMode(i) },
             { label: '霓虹閃爍', opts: STREET_MODES, cur: () => neonMode(), pick: (i: number) => setNeonMode(i) }] : []),
+          // 激情歲月 (docs/rules/24 §7–§10): its street, the loudspeakers, the quotations, the intro again.
+          ...(mapId === JQ_MAP ? [{ label: '街頭行人', opts: STREET_MODES, cur: () => walkersMode(), pick: (i: number) => setWalkersMode(i) },
+            { label: '街頭車輛', opts: STREET_MODES, cur: () => vehiclesMode(), pick: (i: number) => setVehiclesMode(i) },
+            { label: '大喇叭廣播', opts: STREET_MODES, cur: () => loudspeakerMode(), pick: (i: number) => setLoudspeakerMode(i) },
+            { label: '語錄開場白', opts: STREET_MODES, cur: () => quotesMode(), pick: (i: number) => setQuotesMode(i) },
+            { label: '穿越片頭', opts: ['重播'], cur: () => -1, pick: () => { replayIntro = true; } }] : []),
           // 大富豪模式: the chat box's 播報 (docs/rules/17 §10).
           ...(chat ? [{ label: '播報', opts: CHAT_MODES, cur: () => chatMode(), pick: (i: number) => { setChatMode(i); chat.refresh(); } }] : []),
           { label: '語言', opts: LANGS.map(l => l.label), nozh: true, cur: () => LANGS.findIndex(l => l.id === lang()),
@@ -790,10 +813,12 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
           render();
         });
         render();
+        let replayIntro = false;
         const v = await hud.settingsSheet('系統', grid,
           [{ label: '投降', kind: 'no', value: 'surrender' }, { label: '回到標題', value: 'title' }]);
         if (v === 'surrender' && needTurn() && confirm('確定要投降嗎？')) { go.cancel(); turn!({ action: 'surrender' }); }
         if (v === 'title' && confirm('回到標題畫面？（未存檔的進度會遺失）')) location.reload();
+        if (replayIntro) await playJqIntro(shell, game, bank!, scale());
         return;
       }
       case 'info':
@@ -889,6 +914,8 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
   // The game goes on once the board shows whole (its first move would otherwise start under the fading screen).
   await boot.close();
   if (me !== session) return;
+  // 激情歲月's 「穿越」 intro (docs/rules/24 §10): once when a new game on the map starts, never for a loaded one.
+  if (mapId === JQ_MAP && !loaded && !ty) { await playJqIntro(shell, game, bank!, scale()); if (me !== session) return; }
   /** The original's small map effects and lines for each event (docs/rules/11). */
   const director = new MapDirector(game, view, hud);
   (window as unknown as { __rich4: Record<string, unknown> }).__rich4.director = director;
@@ -923,6 +950,14 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
   if (room) {
     stage.append(waiting);
     room.onDesync = warnDesync;
+    // The richest player can't be voted out (the same game state on every phone, so the same answer everywhere); a
+    // tie (the start) protects nobody.
+    room.richest = seat => {
+      const me2 = game.players[seat];
+      if (!me2 || me2.bankrupt || !me2.whoPlays) return false;
+      const w = game.wealth(me2);
+      return game.players.every(q => q === me2 || q.bankrupt || !q.whoPlays || game.wealth(q) < w);
+    };
     room.onStatus = t => {
       if (room.kicked) {
         // Its own notice over everything (a box could queue behind the game's), then back to the title.
@@ -988,12 +1023,17 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
     return new Promise(res => setTimeout(res, Math.max(0, turnDeadline - Date.now())));
   };
   /** `ui` or, when the clock runs out first, `late()`. */
+  // `late` runs only while this question is still open: the clock of a question answered in time used to fire anyway
+  // later and close whatever was open then (a card menu, the stock market) and hide the next GO (issue #4).
   const timed = async <T,>(ui: Promise<T>, clockRun: Promise<void> | null, late: () => T, cancel = () => hud.dismiss()): Promise<T> => {
     let settled = false;
-    const choices = [ui];
-    if (clockRun) choices.push(clockRun.then(() => settled ? undefined as T : late()));
+    const never = new Promise<T>(() => {});
+    const choices: Promise<T>[] = [ui.then(v => { settled = true; return v; })];
+    if (clockRun) choices.push(clockRun.then(() => (settled ? never : late())));
     if (room && !room.host && sendSeq >= 0) choices.push(room.wait(sendSeq).then(value => {
-      if (!settled) cancel();
+      if (settled) return never;
+      settled = true;
+      cancel();
       return value as T;
     }));
     const result = await Promise.race(choices);
@@ -1272,7 +1312,8 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
       case 'day':
         // Holiday music counts its days down, then today's holiday may start (fcn_0041cf67 / fcn_00452444).
         {
-          const h = holidayMusic(s.date, game.mapSlot);
+          // 激情歲月 (docs/rules/24): no Christmas or New-Year music in 1966 Beijing's map (it is built on the Japan slot).
+          const h = game.settings.mapId === JQ_MAP ? null : holidayMusic(s.date, game.mapSlot);
           audio.newDay(h?.music ?? null, h?.days);
         }
         hud.refresh();

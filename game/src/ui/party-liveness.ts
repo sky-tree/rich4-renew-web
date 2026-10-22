@@ -1,10 +1,10 @@
 import type { DataConnection } from 'peerjs';
 
 /** DataChannel.open can stay true after a mobile network disappears. */
-export function watchPartyConnection(connection: DataConnection) {
+export function watchPartyConnection(connection: DataConnection, onSilent?: () => void) {
   let heard = Date.now();
   let stopped = false;
-  const close = () => { if (!stopped) { stop(); connection.close(); } };
+  const close = () => { if (!stopped) { stop(); connection.close(); onSilent?.(); } };
   const returned = () => { if (connection.open) close(); };
   const stop = () => {
     if (stopped) return;

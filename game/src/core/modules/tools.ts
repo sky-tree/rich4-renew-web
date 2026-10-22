@@ -85,6 +85,7 @@ const VIEW_HALF = 220;
 const MISSILE_HALF = 100;
 /** Facility level caps by type (ref_00474940). */
 const FACILITY_MAX = [1, 5, 5, 1, 5, 5, 5, 5, 5, 5]; // + 5..9 大富翁城's halls (docs/rules/19)
+FACILITY_MAX[14] = 5; // 激情歲月's 宣傳站 (docs/rules/24 §2.4); 10..13 stay as they were
 /** Objects that hurt whoever stops on them (remote dice AI, 05 §10.1.3). */
 const HARMFUL = new Set([5, 6, 7, 8, 10, 11, 16, 17, 18]);
 /** Lab options 1..5 (05 §7). */
@@ -895,6 +896,9 @@ export class Tools {
     }
   }
 
+  /** The original computer's judgement of tool `t` (its parameter, null to skip), for the smarter one at 困難 (core/smart-ai.ts). */
+  judgeFor(p: Player, t: number): number | null { return this.judge(p, t); }
+
   /** Personality +0x17 (0 乖寶寶, 1 普通人, 2 大老奸) from the character template. */
   private temper(p: Player): number {
     return CHARACTERS[p.character]?.personality ?? 1;
@@ -1120,6 +1124,7 @@ export class Tools {
     const turnover = { buy: 0, sell: 0 };
     g.world?.hooks.syncWanted(); // 大富豪模式: one 通緝卡 per city (17 §3.5)
     if (g.isHuman(p)) yield* this.humanShop(p, turnover);
+    else if (g.smartTactics(p)) g.smart.shop(p, turnover); // the smarter computer at 困難 (core/smart-ai.ts)
     else this.aiShop(p, turnover);
     // Turnover (05 §8.6): purchases count price × 10, sales full price × count, on the shop's company record.
     if (company) { const sum = turnover.buy + turnover.sell; company.fundA += sum; company.fundB += sum; }
@@ -1160,7 +1165,7 @@ export class Tools {
    * A card bought at the shop goes from the pool to the hand (_rich4_receive_card). 大富豪模式 (17 §3.10): the
    * always-stocked cards and the 通緝卡 are not taken from the nationwide pool.
    */
-  private shopCard(p: Player, id: number) {
+  shopCard(p: Player, id: number) {
     const pool = this.g.cards.remaining, had = pool[id - 1];
     this.g.cards.receive(p, id);
     if (this.g.world && (shopAlways(id) || id === WANTED_CARD) && id <= pool.length) pool[id - 1] = had ?? 0;

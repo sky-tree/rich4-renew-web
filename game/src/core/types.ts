@@ -14,6 +14,11 @@ export interface GameSettings {
   seed: number;
   /** 派對模式 (ui/party-net.ts): a 托管 player's turn starts with the 'auto-turn' question, so 取消托管 reaches every phone. */
   party?: boolean;
+  /**
+   * A normal game's computer level (core/smart-ai.ts, Game.aiLevel): 0 簡單 (the original's computer; none = 0, as every
+   * game and save before it), 1 中級, 2 困難. 派對模式 plays 困難, 大富豪模式 簡單, whatever this says.
+   */
+  aiLevel?: 0 | 1 | 2;
 }
 
 export const FUNDS = [300000, 200000, 100000, 50000, 30000, 10000];
@@ -54,6 +59,12 @@ export interface Player {
   vanish: number;
   prison: number;
   hospital: number;
+  /**
+   * Released from there at this turn start (who_plays 0x10, fcn_0040d6be; the byte above stays 0x80 meanwhile): the
+   * walk out onto the door square, which is resolved first, comes at the dispatch (docs/rules/06 §9.3.1). Set only
+   * between the two, so never in a save.
+   */
+  leaving?: 'hospital' | 'prison';
   sleep: number;
   sleepwalk: number;
   stay: number;

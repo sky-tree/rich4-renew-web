@@ -22,7 +22,8 @@ import Peer, { type DataConnection } from 'peerjs';
 import { CHARACTERS } from '../core/characters';
 import { watchPartyConnection } from './party-liveness';
 
-const PREFIX = 'rich4-party-v1-';
+// v2 (2026-10-22): with the heartbeat (issue #4); phones of v1 have their own rooms and list.
+const PREFIX = 'rich4-party-v2-';
 // v2 (2026-10-20): the list also counts private rooms and seekers; older versions keep their own list (v1).
 export const LOBBY = `${PREFIX}lobby-v2`;
 const roomId = (code: string) => `${PREFIX}room-${code}`;
@@ -502,11 +503,15 @@ export function validateIncomingMsg(
       if (!trimmedText || trimmedText.length > 200) {
         return { ok: false, reason: 'invalid-chat-text' };
       }
-      // If formatted like a reaction sticker `[s:...]`, strictly enforce whitelist key
-      if (trimmedText.startsWith('[s:') || trimmedText.endsWith(']')) {
+      // If formatted like a reaction sticker `[s:...]` or taunt `[t:...]`, strictly enforce whitelist
+      const isTaunt = /^\[t:[a-zA-Z0-9_.:-]{1,64}:[0-7]\]$/.test(trimmedText);
+      if ((trimmedText.startsWith('[s:') || trimmedText.startsWith('[t:') || trimmedText.endsWith(']')) && !isTaunt) {
         const stickerMatch = /^\[s:([a-z]+)\]$/.exec(trimmedText);
         if (trimmedText.startsWith('[s:') && (!stickerMatch || !VALID_STICKER_KEYS.has(stickerMatch[1]))) {
           return { ok: false, reason: 'invalid-chat-sticker' };
+        }
+        if (trimmedText.startsWith('[t:')) {
+          return { ok: false, reason: 'invalid-chat-taunt' };
         }
       }
       const from = typeof l.from === 'string' ? l.from : '';
@@ -518,7 +523,7 @@ export function validateIncomingMsg(
         from,
         name: cleanNick(rawName) || (l.character === -1 ? '系統' : CHARACTERS[l.character]?.name || '玩家'),
         character: l.character,
-        text: trimmedText.slice(0, 40),
+        text: isTaunt ? trimmedText.slice(0, 80) : trimmedText.slice(0, 40),
         at: typeof l.at === 'number' && Number.isFinite(l.at) ? l.at : Date.now(),
       };
       return { ok: true, msg: { t: 'chat', line: cleanLine } };
@@ -722,6 +727,16 @@ export class Room {
   /** Kick votes: target → voters; two others agreeing send anyone (the host too) away. */
   votes = new Map<string, Set<string>>();
   onVotes: () => void = () => {};
+  /**
+   * The seat with the most assets right now (several on a tie), set by the game screen: it cannot be voted out (the
+   * user 2026-10-22: a few players agreeing to send the richest away would only start a fight).
+   */
+  richest: (seat: number) => boolean = () => false;
+  /** Whether `id` cannot be voted out now (the game going on, and its player the richest). */
+  protectedId(id: string): boolean {
+    const seat = this.started?.seats[id];
+    return seat !== undefined && this.richest(seat);
+  }
   /** Seats of players sent away: the host answers them for the computer (托管 at their next turn). */
   kickedSeats = new Set<number>();
   /** This phone was sent away (the game screen goes back to the title). */
@@ -805,6 +820,14 @@ export class Room {
 
   /** A player's peer id changed (a phone that became the host, or came back with a new verified connection). */
   private rename(prev: string, id: string, nextTokenCommit?: string) {
+    // The id may still be the lost host's (a new host takes over the room's id): that member and seat are kept apart
+    // first, as gone — they used to be overwritten, so the old host's seat counted as connected and nobody played it
+    // (issue #4: everyone waited 「等待 … 操作」 after the host quit).
+    if (id !== prev) {
+      const gone = `gone-${id}-${Date.now()}`;
+      for (const m of this.members) if (m.id === id) { m.id = gone; m.away = true; }
+      if (this.started && id in this.started.seats) { this.started.seats[gone] = this.started.seats[id]; delete this.started.seats[id]; }
+    }
     for (const m of this.members) {
       if (m.id === prev) {
         m.id = id;
@@ -859,17 +882,25 @@ export class Room {
     let acknowledge: (accepted: boolean) => void = () => {};
     const acknowledged = new Promise<boolean>(resolve => { acknowledge = resolve; });
     const timer = setTimeout(() => acknowledge(false), 8000);
+    const dropHost = () => {
+      acknowledge(false);
+      if (this.toHost === c) {
+        this.toHost = null;
+        if (!this.closed && !this.host) void this.rejoin();
+      }
+    };
     c.on('data', d => {
       const checked = validateIncomingMsg(d);
       if (checked.ok) {
         const m = checked.msg;
+        if (m.t === 'ping' || m.t === 'pong') return;
         this.fromHost(m);
         if (m.t === 'lobby' && m.members.some(member => member.id === this.myId) || m.t === 'log' && this.started) acknowledge(true);
         if (m.t === 'bye') acknowledge(false);
       }
     });
-    c.on('close', () => { acknowledge(false); if (this.toHost === c) { this.toHost = null; if (!this.closed && !this.host) void this.rejoin(); } });
-    watchPartyConnection(c);
+    c.on('close', dropHost);
+    watchPartyConnection(c, dropHost);
     const hs = prepareReconnectHandshake(this.tokenState, this.myId, prev);
     try { c.send({
       t: 'hi',
@@ -916,7 +947,7 @@ export class Room {
   }
 
   private guest(c: DataConnection) {
-    watchPartyConnection(c);
+    watchPartyConnection(c, () => this.dropGuest(c));
     c.on('data', d => {
       const checked = validateIncomingMsg(d);
       if (!checked.ok) {
@@ -926,6 +957,7 @@ export class Room {
         return;
       }
       const m = checked.msg;
+      if (m.t === 'ping' || m.t === 'pong') return;
       if (this.kickedIds.has(c.peer)) { c.send({ t: 'bye', why: '你已被投票請出房間' } satisfies Msg); return; }
       if (m.t === 'hi') {
         const claimedPrev = m.prev || (this.members.some(x => x.id === c.peer) ? c.peer : undefined);
@@ -1007,7 +1039,9 @@ export class Room {
       } else if (m.t === 'chat') {
         const sender = this.members.find(y => y.id === c.peer);
         if (!sender) return;
-        const cleanText = String(m.line.text ?? '').trim().slice(0, 40);
+        const rawText = String(m.line.text ?? '').trim();
+        const isTaunt = /^\[t:[a-zA-Z0-9_.:-]{1,64}:[0-7]\]$/.test(rawText);
+        const cleanText = isTaunt ? rawText.slice(0, 80) : rawText.slice(0, 40);
         if (!cleanText) return;
         // Construct ChatLine from authoritative host member state, never trusting remote `m.line.character` or `m.line.name`
         this.heard({
@@ -1022,12 +1056,16 @@ export class Room {
         this.voted(m.target, c.peer);
       }
     });
-    c.on('close', () => {
-      if (this.guests.get(c.peer) !== c) return;
-      this.guests.delete(c.peer);
-      if (!this.started) { this.members = this.members.filter(x => x.id !== c.peer); this.lobbyChanged(); }
-      else if (!this.closed) { for (const x of this.members) if (x.id === c.peer) x.away = true; this.lobbyChanged(); this.onStatus('有玩家斷線，等待他回來…'); }
-    });
+    c.on('close', () => this.dropGuest(c));
+  }
+
+  /** A guest's connection closed, or it went silent (heartbeat): it is gone until it comes back. */
+  private dropGuest(c: DataConnection) {
+    if (this.guests.get(c.peer) !== c) return;
+    this.guests.delete(c.peer);
+    try { c.close(); } catch { /* already closed */ }
+    if (!this.started) { this.members = this.members.filter(x => x.id !== c.peer); this.lobbyChanged(); }
+    else if (!this.closed) { for (const x of this.members) if (x.id === c.peer) x.away = true; this.lobbyChanged(); this.onStatus('有玩家斷線，等待他回來…'); }
   }
 
   freeCharacter(want: number, id: string): number {
@@ -1210,7 +1248,7 @@ export class Room {
 
   /** Sends a line (at most 40 characters). */
   say(text: string) {
-    const t = text.trim().slice(0, 40);
+    const t = /^\[t:[^\]]+\]$/.test(text) ? text.slice(0, 80) : text.trim().slice(0, 40); // a taunt names its target's id
     if (!t) return;
     const mine = this.members.find(x => x.id === this.myId);
     const line: ChatLine = { from: this.myId, name: mine?.name ?? this.me.name, character: mine?.character ?? this.me.character, text: t, at: Date.now() };
@@ -1236,6 +1274,16 @@ export class Room {
   /** Host: counts a vote (even against itself); two others agreeing send the player away. */
   private voted(target: string, voter: string) {
     if (!this.host || voter === target || !this.members.some(x => x.id === target)) return;
+    if (this.protectedId(target)) {
+      // The richest can't be sent away: its votes are dropped, everyone is told.
+      this.votes.delete(target);
+      for (const c of this.guests.values()) c.open && c.send({ t: 'votes', target, voters: [] } satisfies Msg);
+      this.onVotes();
+      const line: ChatLine = { from: '', name: '系統', character: -1, text: `${this.nameOf(target)}目前總資產最多，不能被請出`, at: Date.now() };
+      this.heard(line);
+      for (const c of this.guests.values()) c.open && c.send({ t: 'chat', line } satisfies Msg);
+      return;
+    }
     const v = this.votes.get(target) ?? new Set<string>();
     v.add(voter);
     this.votes.set(target, v);
