@@ -24,12 +24,14 @@ it('first join survives the actual PeerJS BinaryPack wire format and waits for h
   room.myId = 'guest-test';
   // A fake signaling handle only; packets still cross the real wire codec and
   // real host validator, which pure object-level security tests had missed.
-  (room as any).peer = { connect: () => { queueMicrotask(() => connection.emit('open')); return connection; }, on: () => {} };
+  const peer = Object.assign(new EventEmitter(), { connect: () => { queueMicrotask(() => connection.emit('open')); return connection; } });
+  (room as any).peer = peer;
   const joined = await (room as any).reach();
   expect(validation).toMatchObject({ ok: true });
   expect(accepted).toBe(true);
   expect(joined).toBe(true);
   expect(room.members.map(m => m.id)).toContain('guest-test');
+  expect(peer.listenerCount('error')).toBe(0);
 });
 
 it('an open data channel without host acknowledgement does not count as joining', async () => {
@@ -37,7 +39,7 @@ it('an open data channel without host acknowledgement does not count as joining'
   const connection = new EventEmitter() as any;
   connection.open = true; connection.send = () => {}; connection.close = vi.fn();
   const room = new Room({ name: 'Guest', character: 1 });
-  (room as any).peer = { connect: () => { queueMicrotask(() => connection.emit('open')); return connection; }, on: () => {} };
+  (room as any).peer = Object.assign(new EventEmitter(), { connect: () => { queueMicrotask(() => connection.emit('open')); return connection; } });
   const joining = (room as any).reach();
   await vi.advanceTimersByTimeAsync(8100);
   expect(await joining).toBe(false);

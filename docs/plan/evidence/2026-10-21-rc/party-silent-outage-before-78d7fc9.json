@@ -1,0 +1,41 @@
+{
+  "candidate": "78d7fc9",
+  "status": "failed",
+  "minimumDays": 1,
+  "mode": "Two Chromium pages on one Mac, automatic ICE policy, UI autopilot and accelerated animation clocks",
+  "fault": "Closed actual guest RTCPeerConnection plus twenty-second outbound-message blackhole; not a physical network outage",
+  "equality": "Every serialized SaveData field except savedAt; SHA-256 checkpoints",
+  "checkpoints": [
+    {
+      "days": 0,
+      "hash": "e61c29cb6dff517a78e27324dab052e46959afc8176d655dbb153e514732f3b9",
+      "phase": "initial"
+    },
+    {
+      "days": 2,
+      "hash": "9ebdd7efa62f6b6bdee4e462996bb8bce1e740b1bdf8a1f76d9a34ccf33b1800",
+      "phase": "diagnostic-before-drop-at-day-2"
+    },
+    {
+      "days": 2,
+      "hash": "9ebdd7efa62f6b6bdee4e462996bb8bce1e740b1bdf8a1f76d9a34ccf33b1800",
+      "phase": "after-reconnect"
+    },
+    {
+      "days": 3,
+      "hash": "88633f7b2ca5e85753a289423e0e00c02eadb37e4ce2d97ecd6c18dfa1f595fa",
+      "phase": "continued-after-reconnect"
+    }
+  ],
+  "note": "Original harness label said twenty days, but minimumDays was 1 and actual pre-drop day was 2. This is diagnostic failure evidence only.",
+  "finalStateSummary": [
+    {
+      "daysElapsed": 3,
+      "waiting": "等待 沙隆巴斯 操作…"
+    },
+    {
+      "daysElapsed": 4,
+      "waiting": "等待 約翰喬 操作…"
+    }
+  ]
+}

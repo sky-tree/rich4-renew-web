@@ -3,6 +3,45 @@ import { retainEvidence } from './e2e-helper';
 import { startMatch } from './gameplay-helper';
 
 test.use({ trace: 'off', video: 'off' });
+test.describe('transient DOM image failure', () => {
+  test.use({ serviceWorkers: 'block' });
+  test('retries a broken sidebar image through a fresh request', async ({ page }) => {
+    test.skip(process.env.E2E_REMOTE_ASSETS !== '1', 'Requires private complete assets');
+    const attempts: string[] = [];
+    await page.route('**/assets/hd/Panel/0000-SMP/frame-000.webp*', route => {
+      const url = new URL(route.request().url());
+      attempts.push(url.searchParams.get('rich4-retry') ?? 'initial');
+      return url.searchParams.has('rich4-retry') ? route.continue() : route.fulfill({ contentType: 'image/webp', body: 'broken-image-test' });
+    });
+    await startMatch(page);
+    await expect.poll(() => attempts.some(value => value !== 'initial')).toBe(true);
+    await expect.poll(() => page.locator('.pp-bg').evaluate(img => (img as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  });
+});
+
+test('sidebar images survive a service-worker-controlled reload', async ({ page }, testInfo) => {
+  test.skip(process.env.E2E_REMOTE_ASSETS !== '1', 'Requires private complete assets');
+  test.setTimeout(90000);
+  const failures: { path: string; status?: number; error?: string }[] = [];
+  page.on('requestfailed', request => failures.push({ path: new URL(request.url()).pathname, error: request.failure()?.errorText }));
+  page.on('response', response => { if (response.status() >= 400) failures.push({ path: new URL(response.url()).pathname, status: response.status() }); });
+  await page.goto('./');
+  await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+  await startMatch(page);
+  try {
+    await expect.poll(() => page.locator('.pp img, .cal img').evaluateAll(images => images.filter(image => {
+      const img = image as HTMLImageElement;
+      return !img.complete || img.naturalWidth === 0;
+    }).length), { timeout: 20000 }).toBe(0);
+  } finally {
+    const images = await page.locator('.pp img, .cal img').evaluateAll(images => images.map(image => {
+      const img = image as HTMLImageElement;
+      return { path: new URL(img.src).pathname, complete: img.complete, width: img.naturalWidth };
+    }));
+    await retainEvidence(testInfo, 'sidebar-images.json', JSON.stringify({ images, failures }, null, 2), 'application/json');
+  }
+});
+
 test('mobile board and ATM art decode and controls fit in both orientations', async ({ page }, testInfo) => {
   test.skip(process.env.E2E_REMOTE_ASSETS !== '1', 'Requires the private complete-assets staging candidate');
   test.setTimeout(120000);

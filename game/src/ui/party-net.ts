@@ -20,6 +20,7 @@
  */
 import Peer, { type DataConnection } from 'peerjs';
 import { CHARACTERS } from '../core/characters';
+import { watchPartyConnection } from './party-liveness';
 
 const PREFIX = 'rich4-party-v1-';
 // v2 (2026-10-20): the list also counts private rooms and seekers; older versions keep their own list (v1).
@@ -115,7 +116,8 @@ export type Msg =
   | { t: 'vote'; target: string; voter: string }
   | { t: 'votes'; target: string; voters: string[] }
   | { t: 'kicked'; id: string; seat?: number }
-  | { t: 'bye'; why?: string };
+  | { t: 'ping' | 'pong' }
+  | { t: 'bye'; why?: string; retry?: boolean };
 
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -533,6 +535,8 @@ export function validateIncomingMsg(
     case 'votes':
     case 'kicked':
     case 'bye':
+    case 'ping':
+    case 'pong':
       return { ok: true, msg: m as Msg };
     default:
       return { ok: false, reason: 'unknown-type' };
@@ -541,7 +545,7 @@ export function validateIncomingMsg(
 
 /** A PeerJS peer with a given id, or null when the id is taken (another phone has it). */
 async function open(id?: string): Promise<Peer | null> {
-  await refreshPartyNetConfig();
+  try { await refreshPartyNetConfig(); } catch { return null; }
   return new Promise(resolve => {
     const opts = buildPeerOptions();
     const p = id ? new Peer(id, opts) : new Peer(opts);
@@ -557,15 +561,29 @@ async function open(id?: string): Promise<Peer | null> {
   });
 }
 
-function connect(peer: Peer, id: string): Promise<DataConnection | null> {
+async function connect(peer: Peer, id: string): Promise<DataConnection | null> {
+  try {
+    await refreshPartyNetConfig();
+    if (peer.options) peer.options.config = buildPeerOptions().config;
+  } catch { return null; }
   return new Promise(resolve => {
-    const c = peer.connect(id, { reliable: true });
+    let c: DataConnection;
+    try { c = peer.connect(id, { reliable: true }); } catch { resolve(null); return; }
     let done = false;
-    const fail = () => { if (!done) { done = true; c.close(); resolve(null); } };
-    c.on('open', () => { if (!done) { done = true; resolve(c); } });
+    const finish = (accepted: boolean) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      peer.off('error', peerError);
+      if (!accepted) c.close();
+      resolve(accepted ? c : null);
+    };
+    const fail = () => finish(false);
+    const peerError = (e: unknown) => { if ((e as { type?: string }).type === 'peer-unavailable') fail(); };
+    const timer = setTimeout(fail, 10000);
+    c.on('open', () => finish(true));
     c.on('error', fail);
-    peer.on('error', e => { if ((e as { type?: string }).type === 'peer-unavailable') fail(); });
-    setTimeout(fail, 10000);
+    peer.on('error', peerError);
   });
 }
 
@@ -710,7 +728,8 @@ export class Room {
   private lostHost = '';
   private rejoining = false;
   private log: [unknown, boolean][] = [];
-  private waiters = new Map<number, (v: unknown) => void>();
+  private waiters = new Map<number, { promise: Promise<unknown>; resolve: (v: unknown) => void }>();
+  private pendingAnswers = new Map<number, Extract<Msg, { t: 'ans' }>>();
   private digests = new Map<number, number>();
   private localDigests = new Map<number, number>();
   /** Maps question `seq` -> expected player `seat` so the host rejects spoofed or premature answers. */
@@ -841,8 +860,9 @@ export class Room {
       }
     });
     c.on('close', () => { acknowledge(false); if (this.toHost === c) { this.toHost = null; if (!this.closed && !this.host) void this.rejoin(); } });
+    watchPartyConnection(c);
     const hs = prepareReconnectHandshake(this.tokenState, this.myId, prev);
-    c.send({
+    try { c.send({
       t: 'hi',
       name: this.me.name,
       character: this.me.character,
@@ -854,7 +874,7 @@ export class Room {
       // BinaryPack encodes an explicit undefined property as null. Spreading
       // the handshake omits absent prev/reconnect fields so validation survives.
       ...hs,
-    } satisfies Msg);
+    } satisfies Msg); } catch { acknowledge(false); }
     const accepted = await acknowledged;
     clearTimeout(timer);
     if (!accepted) { if (this.toHost === c) this.toHost = null; c.close(); return false; }
@@ -887,6 +907,7 @@ export class Room {
   }
 
   private guest(c: DataConnection) {
+    watchPartyConnection(c);
     c.on('data', d => {
       const checked = validateIncomingMsg(d);
       if (!checked.ok) {
@@ -908,7 +929,7 @@ export class Room {
           const stillOpen = Boolean(existingConn && existingConn !== c && existingConn.open);
           const verified = verifyReconnectClaim(this.members, claimedPrev, m.reconnectToken, stillOpen);
           if (!verified.ok) {
-            c.send({ t: 'bye', why: '重連身分驗證失敗' } satisfies Msg);
+            c.send({ t: 'bye', why: '重連身分驗證失敗', ...(verified.reason === 'peer-still-active' ? { retry: true } : {}) } satisfies Msg);
             return;
           }
           this.rename(claimedPrev, c.peer, m.tokenCommit);
@@ -947,7 +968,11 @@ export class Room {
       } else if (m.t === 'ans') {
         // Strictly verify that `c.peer` is a room member AND owns the seat expected to answer `m.seq` (P0-2 & P1-01 fix).
         if (!this.members.some(y => y.id === c.peer)) return;
-        if (m.seq < this.log.length && this.log[m.seq] !== undefined) return;
+        if (m.seq < this.log.length && this.log[m.seq] !== undefined) {
+          const [v, u] = this.log[m.seq];
+          c.send({ t: 'ans', seq: m.seq, v: v ?? null, u } satisfies Msg);
+          return;
+        }
         const auth = authorizeSeatAnswer(
           this.started?.seats,
           this.kickedSeats,
@@ -1039,6 +1064,7 @@ export class Room {
         const e = this.log[seq];
         if (e) this.toHost?.send({ t: 'ans', seq, v: e[0] ?? null, u: e[1], ...(mySeat !== undefined ? { seat: mySeat } : {}) } satisfies Msg);
       }
+      for (const [seq, answer] of this.pendingAnswers) if (seq >= m.total) this.toHost?.send(answer);
     }
     else if (m.t === 'digest') {
       const ours = this.localDigests.get(m.seq);
@@ -1051,7 +1077,10 @@ export class Room {
     else if (m.t === 'chat') this.heard(m.line);
     else if (m.t === 'votes') { this.votes.set(m.target, new Set(m.voters)); this.onVotes(); }
     else if (m.t === 'kicked') this.away(m.id, m.seat);
-    else if (m.t === 'bye') { this.kicked = /請出/.test(m.why ?? ''); this.onStatus(m.why ?? '房間已滿'); this.close(); }
+    else if (m.t === 'bye') {
+      if (m.retry === true) { this.toHost?.close(); return; }
+      this.kicked = /請出/.test(m.why ?? ''); this.onStatus(m.why ?? '房間已滿'); this.close();
+    }
   }
 
   /** Someone was voted out (told by the host): this phone leaves, or forgets them (the host's leaving starts the hand-over). */
@@ -1108,12 +1137,14 @@ export class Room {
       const m: Msg = { t: 'ans', seq, v: v ?? null, u: v === undefined };
       for (const c of this.guests.values()) c.open && c.send(m);
     }
-    this.waiters.get(seq)?.(v);
+    this.pendingAnswers.delete(seq);
+    this.waiters.get(seq)?.resolve(v);
     this.waiters.delete(seq);
   }
   /** This phone answered question `seq` (one of its seats, or a seat sent away when it hosts). */
-  answer(seq: number, v: unknown, seat?: number) {
-    this.record(seq, v, false);
+  answer(seq: number, v: unknown, seat?: number): Promise<unknown> {
+    const have = this.log[seq];
+    if (have) return Promise.resolve(have[1] ? undefined : have[0]);
     const resolvedSeat = seat ?? this.expectedSeats.get(seq) ?? this.started?.seats[this.myId];
     const m: Msg = {
       t: 'ans',
@@ -1122,14 +1153,32 @@ export class Room {
       u: v === undefined,
       ...(typeof resolvedSeat === 'number' ? { seat: resolvedSeat } : {}),
     };
-    if (this.host) { for (const c of this.guests.values()) c.open && c.send(m); }
-    else this.toHost?.send(m);
+    if (this.host) {
+      this.record(seq, v, false);
+      for (const c of this.guests.values()) c.open && c.send(m);
+      return Promise.resolve(v);
+    }
+    // Only the host's committed answer enters the replay log. In particular an
+    // offline guest must not execute a dice answer that the host replaced with autopilot.
+    this.pendingAnswers.set(seq, m);
+    const accepted = this.wait(seq);
+    if (this.toHost?.open) {
+      try { this.toHost.send(m); } catch { this.toHost.close(); }
+    }
+    return accepted;
   }
   /** The answer to question `seq` of another phone's seat. */
   wait(seq: number): Promise<unknown> {
     const have = this.log[seq];
     if (have) return Promise.resolve(have[1] ? undefined : have[0]);
-    return new Promise(resolve => this.waiters.set(seq, resolve));
+    let pending = this.waiters.get(seq);
+    if (!pending) {
+      let resolve!: (v: unknown) => void;
+      const promise = new Promise<unknown>(done => { resolve = done; });
+      pending = { promise, resolve };
+      this.waiters.set(seq, pending);
+    }
+    return pending.promise;
   }
 
   private rememberDigest(target: Map<number, number>, seq: number, h: number) {

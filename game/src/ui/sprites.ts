@@ -124,7 +124,7 @@ export class SpriteBank {
     const key = `${this.key(archive, id)}@${mul}`, hit = this.boardCache.get(key);
     if (hit && !(hit instanceof Promise)) {
       hit.used = performance.now();
-      if (hit.px < this.want(mul) && !hit.next) this.loadBoard(archive, id, mul, hit);
+      if ((!hit.frames || hit.px < this.want(mul)) && !hit.next && performance.now() >= (hit.retryAt ?? 0)) this.loadBoard(archive, id, mul, hit);
       return hit.frames;
     }
     if (!hit) void this.boardReady(archive, id, mul);
@@ -135,7 +135,10 @@ export class SpriteBank {
   boardReady(archive: Archive, id: number, mul = 1): Promise<Frame[] | null> {
     const key = `${this.key(archive, id)}@${mul}`, hit = this.boardCache.get(key);
     if (hit instanceof Promise) return hit;
-    if (hit) return Promise.resolve(hit.frames);
+    if (hit) {
+      if ((!hit.frames || hit.px < this.want(mul)) && performance.now() >= (hit.retryAt ?? 0)) return hit.next ?? this.loadBoard(archive, id, mul, hit);
+      return Promise.resolve(hit.frames);
+    }
     return this.loadBoard(archive, id, mul);
   }
 
@@ -184,7 +187,7 @@ export class SpriteBank {
   /** Whether a resource's board frames are decoded at the board's density now. */
   boardHas(archive: Archive, id: number, mul = 1): boolean {
     const hit = this.boardCache.get(`${this.key(archive, id)}@${mul}`);
-    return !!hit && !(hit instanceof Promise) && hit.px >= this.want(mul);
+    return !!hit && !(hit instanceof Promise) && !!hit.frames && hit.px >= this.want(mul);
   }
 
   private loadBoard(archive: Archive, id: number, mul: number, stale?: BoardEntry): Promise<Frame[] | null> {
@@ -197,7 +200,9 @@ export class SpriteBank {
       const frames = f ?? stale?.frames ?? null, bytes = frames ? frameBytes(frames) : 0;
       const isMap = archive === 'map';
       if (isMap) this.mapBytes += bytes - (stale?.bytes ?? 0);
-      this.boardCache.set(key, { frames, px, used: performance.now(), bytes, map: isMap });
+      const resource = this.key(archive, id);
+      this.boardCache.set(key, { frames, px: f ? px : stale?.px ?? 0, used: performance.now(), bytes, map: isMap,
+        retryAt: f ? 0 : this.orig.has(resource) || this.hd.has(resource) ? performance.now() + RETRY_MS : Infinity });
       if (isMap) this.trimBoard();
       this.onLoad();
       return f;
@@ -211,21 +216,29 @@ export class SpriteBank {
     const key = this.key(archive, id);
     const hit = this.cache.get(key);
     if (Array.isArray(hit)) return hit;
-    if (hit) return null;
+    if (hit && (hit !== 'missing' || performance.now() < (this.retryAt.get(key) ?? Infinity))) return null;
     void this.ready(archive, id);
     return null;
   }
 
   private pending = new Map<string, Promise<Frame[] | null>>();
+  private retryAt = new Map<string, number>();
   /** The frames once loaded and decoded, for a caller that must not go on without them (the dice throw). */
   ready(archive: Archive, id: number): Promise<Frame[] | null> {
     const key = this.key(archive, id), hit = this.cache.get(key);
     if (Array.isArray(hit)) return Promise.resolve(hit);
-    if (hit === 'missing') return Promise.resolve(null);
+    if (hit === 'missing' && performance.now() < (this.retryAt.get(key) ?? Infinity)) return Promise.resolve(null);
     let p = this.pending.get(key);
     if (!p) {
       this.cache.set(key, 'loading');
-      p = this.load(archive, key).then(f => { this.cache.set(key, f ?? 'missing'); this.pending.delete(key); this.onLoad(); return f; });
+      p = this.load(archive, key).catch(() => null).then(f => {
+        this.cache.set(key, f ?? 'missing');
+        if (!f) this.retryAt.set(key, this.orig.has(key) || this.hd.has(key) ? performance.now() + RETRY_MS : Infinity);
+        else this.retryAt.delete(key);
+        this.pending.delete(key);
+        this.onLoad();
+        return f;
+      });
       this.pending.set(key, p);
     }
     return p;
@@ -368,10 +381,12 @@ interface BoardEntry {
   bytes: number;
   /** A map sprite (released over the budget); the figures and the dice are not. */
   map: boolean;
+  retryAt?: number;
 }
 
 /** A map sprite not drawn for this long may be released over the budget (an effect holding its frames is over by then). */
 const IDLE_MS = 8000;
+const RETRY_MS = 3000;
 
 const frameBytes = (frames: Frame[]) => frames.reduce((s, f) => { const { w, h } = picSize(f.img); return s + w * h * 4; }, 0);
 

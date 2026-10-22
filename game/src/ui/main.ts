@@ -52,11 +52,13 @@ import { nextSettings, recordResult, type CarriedSettings, type RunRecord } from
 import { phrases, shrinkText } from './text';
 import { canFitOfflinePack, defaultTelemetry, downloadMapOfflinePack, initAppShellPwa, listCachedOfflineMaps, removeMapOfflinePack } from '../assets/offline-pwa';
 import { checkTitleUpdate } from './build-version';
+import { initImageRecovery } from './image-recovery';
 
 const app = document.getElementById('app')!;
 // The orientation chosen in the settings is applied at start, before the title screen is laid out.
 void applyOrientation();
 void initAppShellPwa();
+initImageRecovery();
 (window as unknown as { __rich4Diag?: unknown }).__rich4Diag = defaultTelemetry;
 const svg = (d: string) => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
 const ICON_LEFT = svg('M3 12a9 9 0 1 0 3-6.7M3 4v5h5'), ICON_RIGHT = svg('M21 12a9 9 0 1 1-3-6.7M21 4v5h-5');
@@ -986,12 +988,17 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
     return new Promise(res => setTimeout(res, Math.max(0, turnDeadline - Date.now())));
   };
   /** `ui` or, when the clock runs out first, `late()`. */
-  const timed = async <T,>(ui: Promise<T>, clockRun: Promise<void> | null, late: () => T): Promise<T> => {
-    if (!clockRun) return ui;
-    let out = false;
-    const r = await Promise.race([ui, clockRun.then(() => { out = true; return late(); })]);
-    void out;
-    return r;
+  const timed = async <T,>(ui: Promise<T>, clockRun: Promise<void> | null, late: () => T, cancel = () => hud.dismiss()): Promise<T> => {
+    let settled = false;
+    const choices = [ui];
+    if (clockRun) choices.push(clockRun.then(() => settled ? undefined as T : late()));
+    if (room && !room.host && sendSeq >= 0) choices.push(room.wait(sendSeq).then(value => {
+      if (!settled) cancel();
+      return value as T;
+    }));
+    const result = await Promise.race(choices);
+    settled = true;
+    return result;
   };
   const dropped = new Map<number, number>();
   const digest = () => {
@@ -1001,7 +1008,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
   };
   for (;;) {
     if (me !== session) { stopWatch(); room?.close(); return; }
-    if (room && sendSeq >= 0) { room.answer(sendSeq, answer, sendSeat >= 0 ? sendSeat : undefined); sendSeq = -1; sendSeat = -1; }
+    if (room && sendSeq >= 0) { answer = await room.answer(sendSeq, answer, sendSeat >= 0 ? sendSeat : undefined) as Answer; sendSeq = -1; sendSeat = -1; }
     const r = flow.next(answer);
     answer = undefined;
     if (r.done) break;
@@ -1095,7 +1102,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
           answerTurn = resolve;
           toolbar.setTurnOpen(true);
           go.show(p.traffic & 3, p.dice, s.maxDice, p.stay !== 0, p.turtle !== 0).then(dice => resolve({ dice }));
-        }), expires(s.p), () => { go.cancel(); void hud.flash('60 秒沒有前進\n改由電腦托管（可按「取消托管」）', 2200); return { action: 'autopilot' } as Answer; });
+        }), expires(s.p), () => { go.cancel(); void hud.flash('60 秒沒有前進\n改由電腦托管（可按「取消托管」）', 2200); return { action: 'autopilot' } as Answer; }, () => { go.cancel(); hud.dismiss(); });
         answerTurn = null;
         wd.setHuman(false);
         view.setMode('locked');
@@ -1148,7 +1155,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
         // the missiles may look round the whole map (selector flag 0x80, 05 §2.6).
         view.setMode(s.onScreen ? 'pick' : 'pick-scroll');
         wd.setHuman(true);
-        answer = await timed(pick.done as Promise<Answer>, expires(s.p), () => { pick.cancel(); return none as unknown as Answer; });
+        answer = await timed(pick.done as Promise<Answer>, expires(s.p), () => { pick.cancel(); return none as unknown as Answer; }, () => { pick.cancel(); hud.dismiss(); });
         wd.setHuman(false);
         view.setMode('locked');
         stage.classList.remove('picking');
@@ -1162,7 +1169,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
         const near = s.players.filter(id => view.inViewOf(s.p, id));
         if (!near.length) { await hud.flash('畫面內沒有可選擇的對象', 1500); answer = -1 as unknown as Answer; continue; }
         wd.setHuman(true);
-        answer = (await hud.ask({ ...s, players: near })) as Answer;
+        answer = await timed(hud.ask({ ...s, players: near }) as Promise<Answer>, expires(s.p), () => { hud.dismiss(); return autoAnswer(s); });
         wd.setHuman(false);
         continue;
       }

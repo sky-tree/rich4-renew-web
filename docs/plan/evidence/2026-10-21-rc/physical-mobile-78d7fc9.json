@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-22",
+  "candidate": "78d7fc9",
+  "compiledBuildConfirmedOnBothDevices": true,
+  "host": "macOS Chrome / home broadband",
+  "guest": "iOS Safari / mobile data",
+  "connectionPolicy": "automatic; selected ICE pair not collected",
+  "join": "passed",
+  "bidirectionalChat": "passed",
+  "userReport": "测试环境不变，手机部分素材未加载。日期，资金一致。手机断网20秒后，恢复网络。手机显示等待电脑操作，电脑显示等待手机操作。",
+  "images": "failed: user screenshots show broken sidebar, calendar, and dialog images",
+  "beforeOutageState": "user reports date and funds agree; full SaveData not collected",
+  "diceCount": "not confirmed",
+  "twentySecondPhysicalOutageRecovery": "failed: mutually waiting",
+  "screenshotsCommitted": false,
+  "screenshotTiming": "not verified simultaneous; do not infer exact paired state from screenshot dates"
+}
