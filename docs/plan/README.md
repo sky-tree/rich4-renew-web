@@ -8,7 +8,7 @@
 >
 > 上游分叉基线：`bb1093863f389620fb56bc630d8b32ef9a35e901`
 
-> **2026-10-22 最新长测入口**：[15 · 受控长测版](15-longtest-release.md)；此前验收见 [14 · 发布候选版验收](14-release-candidate-acceptance.md)。以下旧基线表保留为历史快照；最新范围以 [S2](12-s2-acceptance-report.md)、[S3](13-s3-benchmark-report.md) 和候选记录为准，不能沿用全部 PASS 的旧结论。
+> **2026-10-23 最新状态**：[16 · 三设备局域网长测与 M11 计划](16-lan-longtest-m11-plan.md)：3 台实体设备同 LAN 稳定运行 1 小时、规则状态一致；未测断线，视觉进度和 iPad 加载待优化。运行候选版本仍参见 [15 · 受控长测版](15-longtest-release.md)。以下旧基线表为历史快照；以近期验收记录为准。
 
 ## 0. 使用说明与状态分类原则
 
@@ -37,6 +37,7 @@
 | [13-s3-benchmark-report.md](13-s3-benchmark-report.md) | 正式 Nginx 传输与原始 rAF/堆采样 | 性能复测 |
 | [14-release-candidate-acceptance.md](14-release-candidate-acceptance.md) | 独立环境、当前版本、五项清单与跨网进展 | 当前验收事实 |
 | [15-longtest-release.md](15-longtest-release.md) | 长测版本、清理范围、操作及回滚 | 当前受控长测 |
+| [16-lan-longtest-m11-plan.md](16-lan-longtest-m11-plan.md) | 三设备实测证据、已关闭工单、M11 新 Issues 与准入条件 | 当前最优先的开发/联机测试 |
 
 ## 1. 一页结论
 
@@ -48,7 +49,7 @@
 4. **渲染演进（M4）**：默认采用成熟稳定的 Canvas 2D 主渲染器；同时提供具备完整着色器管线、纹理 LRU 预算与上下文丢失恢复的实验性 `WebGLBoardRenderer`（`?renderer=webgl`）。
 5. **联机安全与离线增强（M5/M6）**：消除联机聊天 DOM XSS（纯 DOM API + 严格 Schema 白名单）、引入 SHA-256 重连令牌承诺防身份冒用、锁步 `ans` 座位归属强校验、6 位高熵邀请码；构建期自动向 `sw.js` 注入全量入口 JS/CSS 预缓存列表并限定 `/rich4/` 注销作用域；选图界面支持按需离线缓存地图包。
 
-## 2. 当前状态总览（2026-10-21）
+## 2. 历史状态总览（2026-10-21；最新进展见第 16 份文档）
 
 | 领域 / 阶段 | 代码实现 | 本地测试与构建（含全量素材） | 云端真实环境上线验收 | 依据或备注 |
 | --- | --- | --- | --- | --- |
@@ -69,7 +70,7 @@
   2. **Mac 开发设备**：日常编码、Safari 兼容性调试、资源审计与构建验证。
   3. **云端服务器（Linux VPS）**：用于部署 `/rich4/` Nginx 静态服务及验证 WebRTC/TURN 跨网联机。
 
-## 4. 下一步重点工作（2026-10-21 审核后更新）
+## 4. 历史下一步重点工作（2026-10-21；已由 M11 计划取代）
 
 1. **M7 先修已定位的问题**：修正 `rich4-ctl.sh` 回滚入口、缺失 PWA 图标、Manifest MIME、Service Worker 缓存策略；核查认证下的 Cloudflare 缓存。已经有 HTTPS 测试版，但尚未做真实回滚验收。
 2. **M8 完整浏览器游戏验收**：引入 Playwright 并进行真实一局结算、历史存档恢复、Windows/Mac/iPhone/iPad/Android 真机测试（T-01～T-14）。

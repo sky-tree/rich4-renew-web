@@ -58,6 +58,8 @@ npm run test:e2e:full
 
 ## 当前工程与验收状态
 
+> **2026-10-23 新增实测**：同一局域网 Windows 小新 R7-8845HS、MacBook Pro M1 Pro、iPad Pro A12Z 三台设备联机 1 小时，**游戏规则状态一致、运行稳定**。可点击跳过动画时设备视觉进度偶有差异，iPad 首次资源加载较慢；**未做断网测试**。下一阶段优先开发 [M11 联机续档、视觉进度、LAN 直连和 iPad 优化](docs/plan/16-lan-longtest-m11-plan.md)（[#12](https://github.com/sky-tree/rich4-renew-web/issues/12)～[#15](https://github.com/sky-tree/rich4-renew-web/issues/15)）。#5、#6 已按限定范围完成，其余旧 Issues 仍需验收。
+
 - **候选代码与本地测试**：67 个文件 / 564 项 Vitest 通过；正式构建、36,109 文件素材摘要、真实 Nginx、UI 存档恢复、一局自然结算、WebGL 合成/回退和原始性能记录已补齐，具体范围见 [候选验收记录](docs/plan/14-release-candidate-acceptance.md)。
 - **当前长测版**：[rich4-staging.gopeaks.club](https://rich4-staging.gopeaks.club/) 已发布 `v0.6.7-longtest.1 · 581bef6`，沿用私测账号、独立 Origin 及默认 TURN 中继。基于三设备至少 20 次掷骰验收通过的 `0a1ed20`，本次只更新版本标识；规则和联机协议仍为 `0.6.6`。发布文件/素材摘要、线上鉴权、6 项 Chrome/WebKit 版本布局及三客户端成员/聊天/实际中继路径检查通过，见 [长测发布记录](docs/plan/15-longtest-release.md)。
 - **清理与验收范围**：旧本地测试服务、构建及测试输出已清理；VPS 旧候选和日志已归档，保留两个回滚基线，验证房间已清空。既有 `/rich4/` 仍为 `66cf0b3`。弱网、五设备实体对局、完整长局、长局 TURN 续期及更广设备/存档矩阵仍待验收，PR #11 保持草稿，不能判定 M7–M10 全部完成。

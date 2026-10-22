@@ -8,7 +8,7 @@
 
 ## 1. 追踪表
 
-2026-10-21 通过 GitHub 实时核实 #1～#10 均为 OPEN；本表实现进度不代表工单已关闭。未修改远端 Issue 状态。
+2026-10-23 实际 GitHub 状态：**#5、#6 已 Closed · completed（附关闭说明）；其余 #1～#4、#7～#10 保持 OPEN**。M11 新工单 #12～#15 见 [16 · 下一阶段计划](16-lan-longtest-m11-plan.md)；本表保留原始十条编号。
 
 | 追踪 ID | 优先级 | 阶段 | 工单标题 | GitHub Issue | 状态 |
 | --- | --- | --- | --- | --- | --- |
@@ -16,12 +16,12 @@
 | ISSUE-DRAFT-02 | P1 | M7 | 修复 PWA 图标缺失与 Web Manifest MIME | [#2](https://github.com/sky-tree/rich4-renew-web/issues/2) | OPEN · 有实现/本地验证，线上验收待完成 |
 | ISSUE-DRAFT-03 | P1 | M7 | 修正 Service Worker 更新缓存策略及回滚一致性 | [#3](https://github.com/sky-tree/rich4-renew-web/issues/3) | OPEN · 有实现/本地验证，线上验收待完成 |
 | ISSUE-DRAFT-04 | P1 / security | M7 | 审核 Basic Auth / Cloudflare 对受限素材的缓存边界 | [#4](https://github.com/sky-tree/rich4-renew-web/issues/4) | OPEN · 有实现/本地验证，线上验收待完成 |
-| ISSUE-DRAFT-05 | P1 | M7 | 发布版本对齐与回滚/HTTP 证据留档 | [#5](https://github.com/sky-tree/rich4-renew-web/issues/5) | OPEN · 有实现/本地验证，线上验收待完成 |
-| ISSUE-DRAFT-06 | P1 | M8 | 引入 Playwright Web E2E 冒烟与失败证据归档 | [#6](https://github.com/sky-tree/rich4-renew-web/issues/6) | OPEN · 生产预览测试已补齐，Node 22 CI 通过；完整范围见 PR #11 |
+| ISSUE-DRAFT-05 | P1 | M7 | 发布版本对齐与回滚/HTTP 证据留档 | [#5](https://github.com/sky-tree/rich4-renew-web/issues/5) | **CLOSED · 版本/证据台账验收；在线真实回滚仍属 #1/#3** |
+| ISSUE-DRAFT-06 | P1 | M8 | 引入 Playwright Web E2E 冒烟与失败证据归档 | [#6](https://github.com/sky-tree/rich4-renew-web/issues/6) | **CLOSED · E2E 基建/分层与 UI 读档路径验收；真机矩阵仍属 #7** |
 | ISSUE-DRAFT-07 | P1 | M8 | 普通完整对局、跨设备与历史存档验收 | [#7](https://github.com/sky-tree/rich4-renew-web/issues/7) | OPEN · 部分验收，详见 S2 修正报告 |
 | ISSUE-DRAFT-08 | P1 | M9 | 冷/热加载、资源体积和 Canvas 性能基准 | [#8](https://github.com/sky-tree/rich4-renew-web/issues/8) | OPEN · 本地候选证据已补，实机范围待完成（见 [S3](13-s3-benchmark-report.md)） |
 | ISSUE-DRAFT-09 | P2 | M9 | 检查实验 WebGL 的双绘制并完成真正 A/B | [#9](https://github.com/sky-tree/rich4-renew-web/issues/9) | OPEN · 本地候选证据已补，实机范围待完成（见 [S3](13-s3-benchmark-report.md)） |
-| ISSUE-DRAFT-10 | P1 | M10 | PeerJS/TURN 跨 NAT、断线恢复与 3–5 人内测 | [#10](https://github.com/sky-tree/rich4-renew-web/issues/10) | OPEN · 用户跨网成员/聊天通过；长局、重连和 3–5 人待验 |
+| ISSUE-DRAFT-10 | P1 | M10 | PeerJS/TURN 跨 NAT、断线恢复与 3–5 人内测 | [#10](https://github.com/sky-tree/rich4-renew-web/issues/10) | OPEN · 用户同 LAN 三设备稳定运行 1 小时且规则状态一致；本轮未测断线与长期 TURN |
 
 **统一 Issue 标题前缀**：`[M7][P1]` / `[M9][P2]`；可根据仓库现有 labels 再标记 `bug`、`enhancement`、`testing` 或 `security`，不要假设不存在的 label 已创建。
 

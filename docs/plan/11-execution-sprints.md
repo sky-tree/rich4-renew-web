@@ -1,5 +1,7 @@
 # 11 · 接下来四个周期的执行计划（2026-10-21）
 
+> **状态提醒（2026-10-23）**：本页 S1–S4 排期和“当前冻结点”是 **2026-10-21 历史计划快照**，不再作为最新 Issues 状态或当前开发顺序。现已进入 [16 · M11 执行计划](16-lan-longtest-m11-plan.md)：GitHub #5/#6 结项，#12–#15 新建；3 台物理设备同 LAN 长测 1 小时游戏规则状态一致，**断线未测试**。候选 PR #11 仍未合并至 `main`。
+
 > 状态：**候选验收进行中（2026-10-22）**，最新证据见 [14](14-release-candidate-acceptance.md)。主要目标：把已实现的 M0–M6 从「单测与构建正常」推进到「受控版本可回滚、能完整对局、可量化性能、跨网络联机可验证」。
 >
 > 任务源：GitHub [Issues #1～#10](https://github.com/sky-tree/rich4-renew-web/issues)；技术基线与事实证据见 [09-post-deploy-verification.md](09-post-deploy-verification.md)。
@@ -34,7 +36,7 @@
 
 ### S1 · 发布可靠性（#1、#2、#3、#4、#5）进展记录
 
-- [x] **#1 回滚入口**：修复 `deploy/rich4-ctl.sh` 调用 `scripts/release-web.mjs rollback`，增加安全正则校验防路径穿越；`game/package.json` 补充 `rollback:web`；隔离沙盒测试（A→B→A→B）全部通过，已合并至 `main`。
+- [x] **#1 回滚入口（实现/隔离测试）**：修复 `deploy/rich4-ctl.sh` 调用 `scripts/release-web.mjs rollback`，增加安全正则校验防路径穿越；`game/package.json` 补充 `rollback:web`；隔离沙盒测试（A→B→A→B）全部通过；**线上真实回滚仍待 #1 验收，不能把实现勾选等同于 Issue 已关闭**。
 - [x] **#2 PWA 图标与 Manifest**：由 `game/scripts/generate-icons.mjs` 原生渲染合规标准的独立 192/512/32 PNG 图标与 SVG/ICO，直接入库；`manifest.webmanifest` 引用正确相对路径；Nginx 补齐 `.webmanifest` 标准 MIME；`verify-web.mjs` 增加图标存在性与字节大小强断言；测试通过。
 - [x] **#3 SW 缓存与回滚一致性**：Nginx 将 `sw.js` 设为 `no-cache, no-store, must-revalidate, max-age=0` 与 `Service-Worker-Allowed: /rich4/`；`sw.js` 针对 `manifest.webmanifest` 实行 Network-First 策略并预缓存独立图标；测试通过。
 - [x] **#4 访问安全与缓存边界**：Nginx/Gateway 中将受保护游戏素材（`webp|png|json|m4a`）严格设定为 `Cache-Control: private, no-transform, max-age=86400, must-revalidate` 与 `Vary: Authorization, Accept-Encoding`，彻底切断 Cloudflare 及共享代理对未授权请求泄露素材的路径；独立图标与 Manifest 保持免密；测试通过。

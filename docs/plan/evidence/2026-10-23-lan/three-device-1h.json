@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-23",
+  "source": "User-provided physical-device test report, not independently instrumented",
+  "network": "Three clients on the same local area network",
+  "devices": [
+    {"os": "Windows", "hardware": "Lenovo Xiaoxin laptop, AMD Ryzen 7 8845HS"},
+    {"os": "macOS", "hardware": "MacBook Pro, Apple M1 Pro"},
+    {"os": "iPadOS", "hardware": "iPad Pro, Apple A12Z"}
+  ],
+  "reported": {
+    "participants": 3,
+    "durationMinutes": 60,
+    "stableOperation": true,
+    "gameRuleStateConsistent": true,
+    "visualAnimationProgress": "Sometimes differing due to click-to-fast-forward UI interactions",
+    "initialAssetLoading": "iPad Pro A12Z slower than Windows and Mac",
+    "disconnectsTested": false
+  },
+  "notMeasured": [
+    "Exact running Git SHA on each device",
+    "Full-state field-by-field hashes",
+    "Selected WebRTC ICE candidate pair, RTT, transport path",
+    "Exact browser and OS versions",
+    "Cold-load transfer bytes and image decode timings",
+    "Disconnection and reconnection",
+    "Complete natural game settlement",
+    "Multiplayer save / rejoin / resume"
+  ],
+  "interpretation": "1 hour LAN 3-device gameplay stable with game-rule state consistency per user; visual pacing differences do not establish deterministic simulation divergence",
+  "linkedIssues": [7, 8, 10, 12, 13, 14, 15],
+  "candidateServerBuildAtReview": "v0.6.7-longtest.1-581bef6",
+  "deviceBuildsVerified": false,
+  "privateCredentialsOrAssetsIncluded": false
+}
