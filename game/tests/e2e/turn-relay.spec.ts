@@ -9,6 +9,12 @@ test('authenticated short-lived TURN credentials carry a forced-relay data chann
   expect(response.ok()).toBe(true);
   expect(response.headers()['cache-control']).toContain('no-store');
   const config = await response.json();
+  const nextConfigResponse = await page.request.get('/api/party-config');
+  expect(nextConfigResponse.ok()).toBe(true);
+  expect(nextConfigResponse.headers()['cache-control']).toContain('no-store');
+  const nextConfig = await nextConfigResponse.json();
+  const freshCredentials = config.iceServers[1]?.username !== nextConfig.iceServers[1]?.username;
+  const cache = [response, nextConfigResponse].map(item => ({ status: item.status(), cacheControl: item.headers()['cache-control'], edge: item.headers()['cf-cache-status'] }));
   const credentialSecondsRemaining = Math.round((config.expiresAt - Date.now()) / 1000);
   await page.goto('./');
   const result = await page.evaluate(async cfg => {
@@ -56,7 +62,8 @@ test('authenticated short-lived TURN credentials carry a forced-relay data chann
     } finally { left.close(); right.close(); }
   }, config);
   await retainEvidence(testInfo, 'turn-relay.json', JSON.stringify({ timestamp: new Date().toISOString(),
-    credentialSecondsRemaining, mode: 'Two real WebRTC clients on one Mac through remote TURN; not cross-NAT gameplay', ...result }, null, 2), 'application/json');
+    credentialSecondsRemaining, freshCredentials, cache, mode: 'Two real WebRTC clients on one Mac through remote TURN; not cross-NAT gameplay', ...result }, null, 2), 'application/json');
+  expect(freshCredentials).toBe(true);
   expect(result.error).toBeNull();
   expect(result.received).toEqual(Array.from({ length: 20 }, (_, i) => i));
   for (const pair of result.report) { expect(pair.localType).toBe('relay'); expect(pair.remoteType).toBe('relay'); }

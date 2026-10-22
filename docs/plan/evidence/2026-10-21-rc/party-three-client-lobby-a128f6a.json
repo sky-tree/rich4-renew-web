@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-22",
+  "status": "passed",
+  "builds": [
+    "a128f6a",
+    "a128f6a",
+    "a128f6a"
+  ],
+  "mode": "3 browser pages on one Mac, forced remote relay configuration; not separate physical networks",
+  "memberCounts": [
+    3,
+    3,
+    3
+  ],
+  "notices": [
+    null,
+    null,
+    null
+  ],
+  "allClientChat": true,
+  "limits": [
+    "Lobby only, before game start",
+    "All clients on one Mac; does not reproduce the reported public network",
+    "Forced-relay configuration; selected candidate pairs not captured in this run"
+  ]
+}

@@ -1,0 +1,195 @@
+{
+  "candidate": "a128f6a",
+  "browserBuilds": [
+    "a128f6a",
+    "a128f6a"
+  ],
+  "status": "passed",
+  "minimumDays": 1,
+  "mode": "Two Chromium pages on one Mac, forced remote relay, UI autopilot and real clocks",
+  "fault": "Closed actual guest RTCPeerConnection plus twenty-second outbound-message blackhole; not a physical network outage",
+  "equality": "Every serialized SaveData field except savedAt; SHA-256 checkpoints",
+  "checkpoints": [
+    {
+      "days": 0,
+      "hash": "f80c77a67c84e43dbe44b0f6c3e3d3ce52f5bc25e56e3006a1ac926eda75317b",
+      "phase": "initial"
+    },
+    {
+      "days": 2,
+      "hash": "5f294b23e60fa733259a3d7f3bb78799d5b188afb35ff9b0be8518d64b919974",
+      "phase": "at-least-1-days-before-drop"
+    },
+    {
+      "days": 2,
+      "hash": "5f294b23e60fa733259a3d7f3bb78799d5b188afb35ff9b0be8518d64b919974",
+      "phase": "after-reconnect"
+    },
+    {
+      "days": 4,
+      "hash": "1d738a7e703017ec720cfc1fe282fd2435dc6916edde7c201b60f6a3067b9946",
+      "phase": "continued-after-reconnect"
+    },
+    {
+      "days": 6,
+      "hash": "2afbf54413c25b02a570fe87c22ffdecdac8077acea964ff3c0513b311aef40b",
+      "phase": "after-twenty-second-message-blackhole"
+    },
+    {
+      "days": 8,
+      "hash": "59bdbd8ab3cca97f3b5f2f5c4aa9db8086df05cb371de73324c4b00bcc383b7d",
+      "phase": "continued-after-message-blackhole"
+    }
+  ],
+  "guestTransport": [
+    {
+      "connection": "closed",
+      "ice": "closed"
+    },
+    {
+      "connection": "closed",
+      "ice": "closed"
+    },
+    {
+      "connection": "closed",
+      "ice": "closed"
+    },
+    {
+      "connection": "closed",
+      "ice": "closed"
+    },
+    {
+      "connection": "closed",
+      "ice": "closed"
+    },
+    {
+      "connection": "connected",
+      "ice": "connected"
+    }
+  ],
+  "signaling": [
+    {
+      "opened": 4,
+      "closed": 3,
+      "errors": 0,
+      "incoming": {
+        "OPEN": 4,
+        "OFFER": 4,
+        "CANDIDATE": 4
+      },
+      "httpErrors": [],
+      "pageErrors": [],
+      "sockets": [
+        {
+          "role": "client",
+          "closed": true,
+          "received": {
+            "OPEN": 1
+          },
+          "offersToCreatedRoom": []
+        },
+        {
+          "role": "client",
+          "closed": true,
+          "received": {
+            "OPEN": 1
+          },
+          "offersToCreatedRoom": []
+        },
+        {
+          "role": "room",
+          "closed": false,
+          "received": {
+            "OPEN": 1,
+            "OFFER": 4,
+            "CANDIDATE": 4
+          },
+          "offersToCreatedRoom": []
+        },
+        {
+          "role": "client",
+          "closed": true,
+          "received": {
+            "OPEN": 1
+          },
+          "offersToCreatedRoom": []
+        }
+      ]
+    },
+    {
+      "opened": 3,
+      "closed": 2,
+      "errors": 0,
+      "incoming": {
+        "OPEN": 3,
+        "ANSWER": 4,
+        "CANDIDATE": 4
+      },
+      "httpErrors": [],
+      "pageErrors": [],
+      "sockets": [
+        {
+          "role": "client",
+          "closed": true,
+          "received": {
+            "OPEN": 1
+          },
+          "offersToCreatedRoom": []
+        },
+        {
+          "role": "client",
+          "closed": true,
+          "received": {
+            "OPEN": 1
+          },
+          "offersToCreatedRoom": []
+        },
+        {
+          "role": "client",
+          "closed": false,
+          "received": {
+            "OPEN": 1,
+            "ANSWER": 4,
+            "CANDIDATE": 4
+          },
+          "offersToCreatedRoom": [
+            true,
+            true,
+            true,
+            true
+          ]
+        }
+      ]
+    }
+  ],
+  "ice": [
+    {
+      "errors": [],
+      "candidateTypes": [
+        "relay",
+        "relay",
+        "relay",
+        "relay",
+        "relay",
+        "relay",
+        "relay"
+      ]
+    },
+    {
+      "errors": [],
+      "candidateTypes": [
+        "relay",
+        "relay",
+        "relay",
+        "relay",
+        "relay",
+        "relay"
+      ]
+    }
+  ],
+  "limits": [
+    "minimumDays=1 diagnosis, not the 20-day acceptance run",
+    "Two Chromium pages on one Mac, not physical mobile-network outage",
+    "Physical image recovery unverified"
+  ]
+}

@@ -1,0 +1,195 @@
+{
+  "date": "2026-10-22",
+  "candidate": "a128f6a",
+  "browserBuilds": [
+    "a128f6a",
+    "a128f6a"
+  ],
+  "status": "passed",
+  "minimumDays": 20,
+  "mode": "Two Chromium pages on one Mac, forced remote relay, UI autopilot and real clocks",
+  "fault": "Closed actual guest RTCPeerConnection plus twenty-second outbound-message blackhole; not a physical network outage",
+  "equality": "Every serialized SaveData field except savedAt; SHA-256 checkpoints",
+  "checkpoints": [
+    {
+      "days": 0,
+      "hash": "301100d02ba2d236d126c103d7e79184ff2f552d7cd5b7c076d8d56824ffc978",
+      "phase": "initial"
+    },
+    {
+      "days": 21,
+      "hash": "2cf5c5a2f0a786d9cdfd4cc75b30bd8e7848b84c14e900d6be21198a70fbd448",
+      "phase": "at-least-20-days-before-drop"
+    },
+    {
+      "days": 21,
+      "hash": "2cf5c5a2f0a786d9cdfd4cc75b30bd8e7848b84c14e900d6be21198a70fbd448",
+      "phase": "after-reconnect"
+    },
+    {
+      "days": 23,
+      "hash": "8a0c8ef2712808d8e37a4b29aba574e20e1f71e30d0afab8db804ed0885545a7",
+      "phase": "continued-after-reconnect"
+    },
+    {
+      "days": 24,
+      "hash": "dedbe6a4971d14a565404ffb6aabe599be88c8fe0a2cc83274825332cdbd8002",
+      "phase": "after-twenty-second-message-blackhole"
+    },
+    {
+      "days": 26,
+      "hash": "58bcfcf29aa6c3a2358b4f71b6d59fd5f6f4d3d57f089cab45cef8c36e39e5cd",
+      "phase": "continued-after-message-blackhole"
+    }
+  ],
+  "guestTransport": [
+    {
+      "connection": "closed",
+      "ice": "closed"
+    },
+    {
+      "connection": "closed",
+      "ice": "closed"
+    },
+    {
+      "connection": "closed",
+      "ice": "closed"
+    },
+    {
+      "connection": "closed",
+      "ice": "closed"
+    },
+    {
+      "connection": "closed",
+      "ice": "closed"
+    },
+    {
+      "connection": "connected",
+      "ice": "connected"
+    }
+  ],
+  "signaling": [
+    {
+      "opened": 4,
+      "closed": 3,
+      "errors": 0,
+      "incoming": {
+        "OPEN": 4,
+        "OFFER": 4,
+        "CANDIDATE": 4
+      },
+      "httpErrors": [],
+      "pageErrors": [],
+      "sockets": [
+        {
+          "role": "client",
+          "closed": true,
+          "received": {
+            "OPEN": 1
+          },
+          "offersToCreatedRoom": []
+        },
+        {
+          "role": "client",
+          "closed": true,
+          "received": {
+            "OPEN": 1
+          },
+          "offersToCreatedRoom": []
+        },
+        {
+          "role": "room",
+          "closed": false,
+          "received": {
+            "OPEN": 1,
+            "OFFER": 4,
+            "CANDIDATE": 4
+          },
+          "offersToCreatedRoom": []
+        },
+        {
+          "role": "client",
+          "closed": true,
+          "received": {
+            "OPEN": 1
+          },
+          "offersToCreatedRoom": []
+        }
+      ]
+    },
+    {
+      "opened": 3,
+      "closed": 2,
+      "errors": 0,
+      "incoming": {
+        "OPEN": 3,
+        "ANSWER": 4,
+        "CANDIDATE": 4
+      },
+      "httpErrors": [],
+      "pageErrors": [],
+      "sockets": [
+        {
+          "role": "client",
+          "closed": true,
+          "received": {
+            "OPEN": 1
+          },
+          "offersToCreatedRoom": []
+        },
+        {
+          "role": "client",
+          "closed": true,
+          "received": {
+            "OPEN": 1
+          },
+          "offersToCreatedRoom": []
+        },
+        {
+          "role": "client",
+          "closed": false,
+          "received": {
+            "OPEN": 1,
+            "ANSWER": 4,
+            "CANDIDATE": 4
+          },
+          "offersToCreatedRoom": [
+            true,
+            true,
+            true,
+            true
+          ]
+        }
+      ]
+    }
+  ],
+  "ice": [
+    {
+      "errors": [],
+      "candidateTypes": [
+        "relay",
+        "relay",
+        "relay",
+        "relay",
+        "relay",
+        "relay",
+        "relay"
+      ]
+    },
+    {
+      "errors": [],
+      "candidateTypes": [
+        "relay",
+        "relay",
+        "relay",
+        "relay",
+        "relay",
+        "relay"
+      ]
+    }
+  ],
+  "limits": [
+    "Two Chromium pages on one Mac, not separate physical networks",
+    "No long-session credential renewal or 3-5-player gameplay in this run"
+  ]
+}

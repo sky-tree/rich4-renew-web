@@ -1,0 +1,242 @@
+{
+  "date": "2026-10-22",
+  "candidate": "a128f6a",
+  "before": {
+    "status": "failed",
+    "browserBuilds": [
+      "a128f6a",
+      "a128f6a"
+    ],
+    "checkpoints": [],
+    "signaling": [
+      {
+        "opened": 6,
+        "closed": 4,
+        "errors": 0,
+        "incoming": {
+          "OPEN": 4,
+          "ANSWER": 3,
+          "CANDIDATE": 7,
+          "OFFER": 1,
+          "ID-TAKEN": 2
+        },
+        "httpErrors": [],
+        "pageErrors": [],
+        "sockets": [
+          {
+            "role": "client",
+            "closed": true,
+            "received": {
+              "OPEN": 1
+            },
+            "offersToCreatedRoom": []
+          },
+          {
+            "role": "client",
+            "closed": true,
+            "received": {
+              "OPEN": 1
+            },
+            "offersToCreatedRoom": []
+          },
+          {
+            "role": "room",
+            "closed": false,
+            "received": {
+              "OPEN": 1,
+              "OFFER": 1,
+              "CANDIDATE": 2
+            },
+            "offersToCreatedRoom": []
+          },
+          {
+            "role": "client",
+            "closed": false,
+            "received": {
+              "OPEN": 1,
+              "ANSWER": 3,
+              "CANDIDATE": 5
+            },
+            "offersToCreatedRoom": []
+          },
+          {
+            "role": "lobby-holder",
+            "closed": true,
+            "received": {
+              "ID-TAKEN": 1
+            },
+            "offersToCreatedRoom": []
+          },
+          {
+            "role": "lobby-holder",
+            "closed": true,
+            "received": {
+              "ID-TAKEN": 1
+            },
+            "offersToCreatedRoom": []
+          }
+        ]
+      },
+      {
+        "opened": 3,
+        "closed": 3,
+        "errors": 0,
+        "incoming": {
+          "OPEN": 3,
+          "ANSWER": 1,
+          "CANDIDATE": 2
+        },
+        "httpErrors": [],
+        "pageErrors": [],
+        "sockets": [
+          {
+            "role": "client",
+            "closed": true,
+            "received": {
+              "OPEN": 1
+            },
+            "offersToCreatedRoom": []
+          },
+          {
+            "role": "client",
+            "closed": true,
+            "received": {
+              "OPEN": 1
+            },
+            "offersToCreatedRoom": []
+          },
+          {
+            "role": "client",
+            "closed": true,
+            "received": {
+              "OPEN": 1,
+              "ANSWER": 1,
+              "CANDIDATE": 2
+            },
+            "offersToCreatedRoom": [
+              true
+            ]
+          }
+        ]
+      }
+    ],
+    "ice": [
+      {
+        "errors": [
+          486,
+          486,
+          486,
+          486,
+          486,
+          486,
+          486,
+          486
+        ],
+        "candidateTypes": [
+          "host",
+          "srflx",
+          "host",
+          "host",
+          "srflx",
+          "srflx",
+          "host",
+          "srflx"
+        ]
+      },
+      {
+        "errors": [
+          486,
+          486,
+          486,
+          486
+        ],
+        "candidateTypes": [
+          "host",
+          "srflx",
+          "host",
+          "srflx"
+        ]
+      }
+    ],
+    "interpretation": "Failed at room join, before any gameplay or outage injection; offer reached the correct room"
+  },
+  "protocolProbe": {
+    "allocateCode": 486,
+    "reason": "Allocation Bandwidth Quota Reached",
+    "method": "One authenticated TURN Allocate, standard error only; private REST secret remained in memory"
+  },
+  "capacity": {
+    "maxBpsBefore": 1048576,
+    "maxBpsAfter": 262144,
+    "bpsCapacity": 8388608,
+    "userQuota": 16,
+    "totalQuota": 32,
+    "explanation": "coturn reserves max-bps per allocation; former capacity admitted about 8 allocations, revised budget admits up to 32 allocations. Allocations are not players."
+  },
+  "change": {
+    "applicationBuild": "unchanged a128f6a",
+    "restart": "rich4-staging-turn.service only",
+    "rollback": "Private mode-600 turn-staging.before-bandwidth-a128f6a.conf retained; restore and restart staging TURN",
+    "production": "unchanged"
+  },
+  "afterIndependentRelayProbe": {
+    "timestamp": "2026-10-22T04:21:07.629Z",
+    "credentialSecondsRemaining": 3600,
+    "freshCredentials": true,
+    "cache": [
+      {
+        "status": 200,
+        "cacheControl": "private, no-store, private, no-store",
+        "edge": "DYNAMIC"
+      },
+      {
+        "status": 200,
+        "cacheControl": "private, no-store, private, no-store",
+        "edge": "DYNAMIC"
+      }
+    ],
+    "mode": "Two real WebRTC clients on one Mac through remote TURN; not cross-NAT gameplay",
+    "received": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "report": [
+      {
+        "localType": "relay",
+        "remoteType": "relay"
+      },
+      {
+        "localType": "relay",
+        "remoteType": "relay"
+      }
+    ],
+    "errors": [],
+    "candidates": [
+      "relay",
+      "relay"
+    ],
+    "error": null
+  },
+  "limits": [
+    "Independent relay echo is not gameplay or physical-device outage acceptance",
+    "Physical a128f6a revision confirmed by user; gameplay/image/outage results pending"
+  ]
+}

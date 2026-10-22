@@ -9,11 +9,11 @@
 | 源码分支 | `codex/release-candidate-acceptance` |
 | 审核入口 | [草稿 PR #11](https://github.com/sky-tree/rich4-renew-web/pull/11)，保持未合并 |
 | 单机/部署修复基线 | `7d72a63` |
-| 当前候选源码 | `cf587f4`，房主确认答案、静默断线检测及图片重试；首页显示实际构建编号 |
+| 当前候选源码 | `a128f6a`，含大厅资源关闭、房主确认答案、静默检测和图片重试 |
 | 候选 URL | https://rich4-staging.gopeaks.club/ |
-| 强制中继验收入口 | https://rich4-staging.gopeaks.club/?relay=1&rc=cf587f4 |
+| 强制中继验收入口 | https://rich4-staging.gopeaks.club/?relay=1&rc=a128f6a |
 | 服务器 | 既有 DevSpace VPS `216.23.82.22`，`ssh gopeaks` 登录 deploy，通过 sudo 使用 devspace |
-| 候选活动链接 | `/srv/devspace/repos/rich4-runtime/rich4-staging` → `rich4-staging-releases/cf587f4` |
+| 候选活动链接 | `/srv/devspace/repos/rich4-runtime/rich4-staging` → `rich4-staging-releases/a128f6a` |
 | 既有版本 | `/srv/devspace/repos/rich4-runtime/rich4` 仍指向 `rich4-releases/66cf0b3`，原路由未修改 |
 | 进程 | `rich4-staging.service`、`rich4-staging-party.service`、`rich4-staging-turn.service`，均由 systemd 管理 |
 
@@ -59,7 +59,13 @@ PeerJS BinaryPack 将显式 `prev: undefined` 编码为 `null`，房主验证器
 
 `cf587f4` 线上 Chrome/WebKit 共 12 项版本及图片检查通过，包含真实 SW 侧栏加载与注入破图后的恢复，见 [图片恢复记录](evidence/2026-10-21-rc/mobile-recovery-cf587f4.json)。游戏断网专项多次在入房阶段失败，未执行故障注入，不能判定修复后恢复通过。独立大厅成员/聊天测试通过；不包装 WebRTC 的同流程开局对照也曾失败，因此不能归因于测试插桩。浏览器记录 ICE 486（分配配额不足）；候选 TURN 用户/总配额从 4/16 调为 16/32，带宽和 UDP 端口范围未改、保留私有回滚配置，但随后仍出现 486 和入房失败，不能标为已解决，见 [中继诊断](evidence/2026-10-21-rc/turn-quota-cf587f4.json)。
 
-另确认首页大厅异步关闭竞态：离开首页时仍在建立的 Peer、连接或共享大厅持有者可在关闭后留下。新增回归先复现两个泄漏，修复在每个等待阶段后检查关闭状态并销毁迟到资源，三项生命周期测试通过。其对实体入房及配额的影响仍需部署后验证。
+另确认首页大厅异步关闭竞态：离开首页时仍在建立的 Peer、连接或共享大厅持有者可在关闭后留下。新增回归先复现两个泄漏，修复在每个等待阶段后检查关闭状态并销毁迟到资源，三项生命周期测试通过。生命周期泄漏已单独验证；其对实体入房及配额故障的因果影响尚未隔离。`a128f6a` 在 Node 22.23.4 下 66 文件 / 560 单测及两份类型检查通过，[CI](https://github.com/sky-tree/rich4-renew-web/actions/runs/39720530875) 通过。用户已确认首页为 `a128f6a`；实体复测结果见下文。
+
+进一步在 `a128f6a` 核对：两端编译编号一致，客人 OFFER 到达正确房间，仍在入房前出现 ICE 486。直接进行单次认证 TURN Allocate，取得标准原因 **Allocation Bandwidth Quota Reached**。coturn 4.6.1 对每个分配预留 `max-bps`；原每分配 1,048,576 B/s、总容量 8,388,608 B/s，只能容纳约 8 个分配，调整连接数配额不能解除该限制。现将每分配上限降为 262,144 B/s，保留总容量、16/32 用户/总配额与端口限制，仅重启候选 TURN，保留私有回滚配置。应用仍固定 `a128f6a`。修正后独立强制中继 20 条消息往返通过、双端均 relay/relay、无 ICE 错误；凭据每次请求唯一且不缓存。此结果不是实体断网验收，见 [带宽配额记录](evidence/2026-10-21-rc/turn-bandwidth-a128f6a.json)。
+
+联机游戏测试改用真实时钟：加速页面时钟也会加速 15 秒静默检测，使正常 TURN 延迟被误判为断线；不能把该运行当成修复后断网证据。真实时钟、强制中继的 1 天诊断已通过：初始、连接替换后、继续操作、20 秒消息黑洞后及再继续操作六个检查点完整存档一致，最终推进至第 8 天，双端无 ICE 错误，见 [短程恢复证据](evidence/2026-10-21-rc/party-recovery-diagnostic-a128f6a.json)。该运行的要求是 1 天，不作为 20 天通过证明。另执行独立 **至少 20 天真实时钟强制中继测试通过**：第 21 天连接替换后继续至第 23 天，第 24 天消息黑洞恢复后再继续至第 26 天，六个完整状态检查点相等，双端无 ICE 错误，见 [20 天恢复证据](evidence/2026-10-21-rc/party-recovery-20-days-a128f6a.json)。
+
+用户在 `a128f6a` 实体复测报告：可入房、双向聊天，手机本次素材正常，断网后可重连回房间并恢复游戏；本次使用网络较好的 **5GA**，不能推定弱网稳定通过。提问要求断网 20 秒，回复未重述精确时长，也没有实体候选对统计；实际连接策略及测试相对 TURN 配额修正的时序未核实。同次新增失败：第二台电脑使用公共网络，在已有两台设备时无法加入；尚待确认是开局前候房还是开局后及错误原文，不能将三设备验收记为通过。见 [当前实体反馈](evidence/2026-10-21-rc/physical-mobile-a128f6a.json)。补跑同一 Mac 三 Chromium 页面、强制中继配置候房对照通过：三端均显示 3 位成员，逐端发送聊天均可互见，见 [三客户端候房](evidence/2026-10-21-rc/party-three-client-lobby-a128f6a.json)。此项未复现公共网络，未验证三人开局；当前设计最多 8 人候房，开局后仅允许持有原座位 token 的玩家重连。
 
 `78d7fc9` 的 [CI](https://github.com/sky-tree/rich4-renew-web/actions/runs/39703675343) 通过。线上 Chrome / iPhone WebKit 模拟共 6 项版本专项检查通过：显示编号与真实发布清单一致、手机横竖屏边界、新版提示及手动刷新、清单不可用时保留编号；刷新后合成本地存储标记仍在。真实版本检查保留 SW；模拟清单响应测试单独禁用 SW，以避免 WebKit 绕过 Playwright 路由（初次因此失败，诊断确认模拟路由调用次数为 0）。这不是实际发布 A→B 的线上 SW 更新或存档兼容性证明。
 
@@ -70,6 +76,7 @@ PeerJS BinaryPack 将显式 `prev: undefined` 编码为 `null`，房主验证器
 - PeerServer 1.0.2 依赖由 `deploy/party-runtime/package-lock.json` 锁定，绑定 `127.0.0.1:18183`，经 staging 会话鉴权与 WSS 代理，关闭公开发现接口。
 - `/api/party-config` 由回环 18182 服务生成，会话鉴权保护、`private, no-store`；客户端只在内存保存一小时 TURN 凭据，近到期在新建 Peer 前刷新；既有 Peer 在长局重连时的配置更新仍待验，不写入存档或 LocalStorage。
 - 签名密钥及 coturn 配置分别在私有 `state/turn-staging.env`、`state/turn-staging.conf`，权限 600，未进入 Git、前端代码或证据日志。
+- 配额维护：`max-bps × total-quota ≤ bps-capacity` 才能容纳设定的最大并发分配；每台设备/房间可建立多个分配，不能将分配数当玩家数。当前 262,144 × 32 = 8,388,608 B/s。
 - TURN 使用 UDP/TCP 3478；UDP 中继分配范围 49160–49200；有总分配/用户/带宽上限，禁止内网/回环/组播目标，关闭匿名 CLI 和 TCP relay allocation。测试只用了 UDP/TCP TURN，尚无 TURN TLS/受限企业网验证。
 - 系统默认 coturn 服务已禁用/屏蔽，仅启用隔离的 `rich4-staging-turn.service`。
 
@@ -94,10 +101,13 @@ E2E_STAGING_AUTH=1 E2E_PARTY=1 E2E_SKIP_SERVER=1 \
 E2E_BASE_URL=https://rich4-staging.gopeaks.club/ \
 npx playwright test tests/e2e/party-lobby.spec.ts tests/e2e/turn-relay.spec.ts \
   --project=desktop-chrome --reporter=list
+
+# 候房多人对照；仍需上述私有环境认证变量
+E2E_PARTY=1 E2E_PARTY_CLIENTS=3 E2E_FORCE_RELAY=1 \
+  npx playwright test tests/e2e/party-lobby.spec.ts --project=desktop-chrome --reporter=list
 ```
 
 本地发布回滚测试使用生成的不同 A/B 入口，不是历史正式包兼容性的证明。线上回滚保留 `a5f27de` 和 `7d72a63` 目录，需要在受控窗口原子切回 staging 链接，并重新验证 SW、清单、素材和 UI 存档；回滚也不应触碰既有生产链接。停止候选服务或删除 staging hostname 路由可撤销独立入口；若停止联机设施，还需撤销本次三条 UFW 规则，保留私有密钥文件直到受控清理。
-
 
 新增专项复测（认证与素材使用上述私有环境开关）：
 

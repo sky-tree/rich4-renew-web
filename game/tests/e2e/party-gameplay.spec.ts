@@ -12,8 +12,8 @@ test('two clients preserve authoritative state through gameplay and transport re
   const minimumDays = Number(process.env.E2E_PARTY_DAYS || 20);
   const forceRelay = process.env.E2E_FORCE_RELAY !== '0';
   let completed = false;
-  let clocksInstalled = false;
   let candidate = 'unknown';
+  let browserBuilds: (string | null)[] = [];
   const codec = readFileSync(new URL('../../node_modules/peerjs-js-binarypack/dist/binarypack.mjs', import.meta.url), 'utf8');
   const unpackName = codec.match(/export \{([\w$]+) as unpack,/)?.[1];
   if (!unpackName) throw new Error('Unknown BinaryPack export');
@@ -71,19 +71,31 @@ test('two clients preserve authoritative state through gameplay and transport re
   });
   const guest = await context.newPage();
   const clients = [page, guest];
-  const signaling = clients.map(p => {
-    const summary = { opened: 0, closed: 0, errors: 0, incoming: {} as Record<string, number>, httpErrors: [] as number[], pageErrors: [] as unknown[] };
+  let createdRoomId = '';
+  const signaling = clients.map((p, index) => {
+    const summary = { opened: 0, closed: 0, errors: 0, incoming: {} as Record<string, number>, httpErrors: [] as number[], pageErrors: [] as unknown[], sockets: [] as unknown[] };
     p.on('pageerror', error => summary.pageErrors.push({ name: error.name,
       category: ['Illegal invocation', 'Maximum call stack', 'Cannot read properties', 'not a function'].find(text => error.message.includes(text)) ?? 'other',
       frames: error.stack?.split('\n').slice(1, 4) }));
     p.on('websocket', socket => {
       summary.opened++;
-      socket.on('close', () => summary.closed++);
+      const id = new URL(socket.url()).searchParams.get('id') ?? '';
+      const role = id.includes('-room-') ? 'room' : id.endsWith('lobby-v2') ? 'lobby-holder' : 'client';
+      if (index === 0 && role === 'room') createdRoomId = id;
+      const detail = { role, closed: false, received: {} as Record<string, number>, offersToCreatedRoom: [] as boolean[] };
+      summary.sockets.push(detail);
+      socket.on('close', () => { summary.closed++; detail.closed = true; });
       socket.on('socketerror', () => summary.errors++);
+      socket.on('framesent', frame => {
+        try { const message = JSON.parse(String(frame.payload)); if (index === 1 && message.type === 'OFFER') detail.offersToCreatedRoom.push(message.dst === createdRoomId); } catch { /* Retain booleans only. */ }
+      });
       socket.on('framereceived', frame => {
         try {
           const type = JSON.parse(String(frame.payload)).type;
-          if (typeof type === 'string' && /^[A-Z-]{1,30}$/.test(type)) summary.incoming[type] = (summary.incoming[type] ?? 0) + 1;
+          if (typeof type === 'string' && /^[A-Z-]{1,30}$/.test(type)) {
+            summary.incoming[type] = (summary.incoming[type] ?? 0) + 1;
+            detail.received[type] = (detail.received[type] ?? 0) + 1;
+          }
         } catch { /* No raw frames, IDs, tokens or chat are retained. */ }
       });
     });
@@ -91,9 +103,9 @@ test('two clients preserve authoritative state through gameplay and transport re
     return summary;
   });
   const advance = async () => {
-    await Promise.all(clients.map(p => p.clock.fastForward(1000)));
-    // Let actual network messages run between animation-clock ticks.
-    await page.waitForTimeout(10);
+    // Liveness and ICE share the app's clock. Keep real time here so accelerated
+    // animation ticks cannot turn normal network latency into a false outage.
+    await page.waitForTimeout(100);
     for (const p of clients) await p.locator('canvas.board').click({ position: { x: 30, y: 70 }, timeout: 1000 }).catch(() => {});
   };
   const checkpoints: { days: number; hash: string; phase: string }[] = [];
@@ -102,9 +114,6 @@ test('two clients preserve authoritative state through gameplay and transport re
     const host = await snapshot(page);
     const hash = createHash('sha256').update(JSON.stringify(host)).digest('hex');
     await expect.poll(async () => {
-      // Host acknowledgement adds a real network round trip. Let the guest
-      // finish its queued animation while the host remains at a manual turn.
-      if (clocksInstalled) await guest.clock.fastForward(200);
       return createHash('sha256').update(JSON.stringify(await snapshot(guest))).digest('hex');
     }, { timeout: 15000 }).toBe(hash);
     checkpoints.push({ days: host.game.daysElapsed, hash, phase });
@@ -121,6 +130,8 @@ test('two clients preserve authoritative state through gameplay and transport re
   try {
     await Promise.all(clients.map(p => p.goto(forceRelay ? './?relay=1' : './')));
     candidate = await page.evaluate(async () => (await (await fetch('./release-manifest.json', { cache: 'no-store' })).json()).gitSha);
+    browserBuilds = await Promise.all(clients.map(p => p.locator('.title-ver').getAttribute('data-build')));
+    expect(browserBuilds).toEqual([candidate, candidate]);
     await Promise.all(clients.map(p => p.locator('[data-act="party"]').click()));
     await page.locator('[data-a="create"]').click({ timeout: 20000 });
     await page.locator('[data-map="2"]').click();
@@ -136,8 +147,6 @@ test('two clients preserve authoritative state through gameplay and transport re
     await expect(page.locator('.go')).toBeVisible({ timeout: 30000 });
     await expect(guest.locator('.party-bar')).toBeVisible({ timeout: 30000 });
     await checkpoint('initial');
-    for (const p of clients) { await p.clock.install(); await p.clock.pauseAt(await p.evaluate(() => Date.now() + 1000)); }
-    clocksInstalled = true;
     await Promise.all(clients.map(p => p.locator('.party-bar [data-v="auto"]').click()));
     let days = 0;
     for (let tick = 0; tick < 4000 && days < minimumDays; tick++) {
@@ -152,17 +161,13 @@ test('two clients preserve authoritative state through gameplay and transport re
     await checkpoint(`at-least-${minimumDays}-days-before-drop`);
     const dropped = await guest.evaluate(() => (window as any).__partyTransportTest.drop());
     expect(dropped).toBeGreaterThan(0);
-    // ICE and signaling run on real network time. Accelerating the application
-    // clock during reconnection prematurely expires PeerJS connection timeouts.
-    await Promise.all(clients.map(p => p.clock.resume()));
     await expect.poll(() => guest.evaluate(() => (window as any).__partyTransportTest.connected()),
       { timeout: 30000, message: 'A new real WebRTC connection must replace the closed one' }).toBeGreaterThan(0);
     // ICE connected is earlier than the DataChannel/host handshake. Wait for
-    // application acknowledgement before accelerating any timeouts again.
+    // application acknowledgement before continuing the game.
     await expect(page.locator('.party-bar [data-v="people"] em')).toHaveText('2/2', { timeout: 30000 });
     await expect(guest.locator('.party-bar [data-v="people"] em')).toHaveText('2/2', { timeout: 30000 });
     await checkpoint('after-reconnect');
-    for (const p of clients) await p.clock.pauseAt(await p.evaluate(() => Date.now() + 100));
     const before = (await snapshot(page)).game.daysElapsed;
     await page.locator('.party-bar [data-v="auto"]').click();
     for (let tick = 0; tick < 600; tick++) {
@@ -175,14 +180,12 @@ test('two clients preserve authoritative state through gameplay and transport re
     if (process.env.E2E_NETWORK_BLACKHOLE === '1') {
       // Keep the channel open while guest messages disappear for twenty real
       // seconds. This differs from the explicit close above: no close event is injected.
-      await Promise.all(clients.map(p => p.clock.resume()));
       await guest.evaluate(() => (window as any).__partyTransportTest.silence(20000));
       await page.locator('.party-bar [data-v="auto"]').click();
       await page.waitForTimeout(22000);
       expect(await guest.evaluate(() => (window as any).__partyTransportTest.suppressed())).toBeGreaterThan(0);
       await expect(page.locator('.party-bar [data-v="people"] em')).toHaveText('2/2', { timeout: 45000 });
       await expect(guest.locator('.party-bar [data-v="people"] em')).toHaveText('2/2', { timeout: 45000 });
-      for (const p of clients) await p.clock.pauseAt(await p.evaluate(() => Date.now() + 100));
       await stopAtHostTurn();
       await checkpoint('after-twenty-second-message-blackhole');
       const before = (await snapshot(page)).game.daysElapsed;
@@ -197,9 +200,9 @@ test('two clients preserve authoritative state through gameplay and transport re
     }
     completed = true;
   } finally {
-    await retainEvidence(testInfo, 'party-gameplay.json', JSON.stringify({ candidate,
+    await retainEvidence(testInfo, 'party-gameplay.json', JSON.stringify({ candidate, browserBuilds,
       status: completed ? 'passed' : 'failed', minimumDays,
-      mode: `Two Chromium pages on one Mac, ${forceRelay ? 'forced remote relay' : 'remote signaling and automatic ICE'}, UI autopilot and accelerated animation clocks`,
+      mode: `Two Chromium pages on one Mac, ${forceRelay ? 'forced remote relay' : 'remote signaling and automatic ICE'}, UI autopilot and real clocks`,
       fault: `Closed actual guest RTCPeerConnection${process.env.E2E_NETWORK_BLACKHOLE === '1' ? ' plus twenty-second outbound-message blackhole' : ''}; not a physical network outage`,
       equality: 'Every serialized SaveData field except savedAt; SHA-256 checkpoints', checkpoints,
       guestTransport: await guest.evaluate(() => (window as any).__partyTransportTest?.states()).catch(() => []),
