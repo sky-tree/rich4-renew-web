@@ -9,11 +9,11 @@
 | 源码分支 | `codex/release-candidate-acceptance` |
 | 审核入口 | [草稿 PR #11](https://github.com/sky-tree/rich4-renew-web/pull/11)，保持未合并 |
 | 单机/部署修复基线 | `7d72a63` |
-| 当前候选源码 | `f7e8528`，修复同 ID 重连座位和迟到摘要；会话鉴权为 `a7ec99b` |
+| 当前候选源码 | `78d7fc9`，首页显示实际构建编号并提供更新提示；中继预检查修复为 `b5c3ce7`；座位及迟到摘要修复为 `f7e8528` |
 | 候选 URL | https://rich4-staging.gopeaks.club/ |
-| 强制中继验收入口 | https://rich4-staging.gopeaks.club/?relay=1&rc=f7e8528 |
+| 强制中继验收入口 | https://rich4-staging.gopeaks.club/?relay=1&rc=78d7fc9 |
 | 服务器 | 既有 DevSpace VPS `216.23.82.22`，`ssh gopeaks` 登录 deploy，通过 sudo 使用 devspace |
-| 候选活动链接 | `/srv/devspace/repos/rich4-runtime/rich4-staging` → `rich4-staging-releases/f7e8528` |
+| 候选活动链接 | `/srv/devspace/repos/rich4-runtime/rich4-staging` → `rich4-staging-releases/78d7fc9` |
 | 既有版本 | `/srv/devspace/repos/rich4-runtime/rich4` 仍指向 `rich4-releases/66cf0b3`，原路由未修改 |
 | 进程 | `rich4-staging.service`、`rich4-staging-party.service`、`rich4-staging-turn.service`，均由 systemd 管理 |
 
@@ -46,6 +46,12 @@ PeerJS BinaryPack 将显式 `prev: undefined` 编码为 `null`，房主验证器
 - **一致性**：增加迟到摘要比较回归；546 项单测、应用与 E2E 类型检查通过。`f7e8528` 双 Chromium 客户端经远端 TURN、UI 托管推进超过 20 天，初始/断开前/重连后/继续推进检查点的全部 SaveData 字段（仅忽略 savedAt）一致；关闭真实 RTCPeerConnection 后成功建立新连接并继续游戏，测试通过。动画时钟加速；这是同一 Mac 的连接替换，不是两条物理网络的 10 秒中断，实体恢复仍需复测。
 
 另补跑 WebKit UI 存档：自动档通过；手动档初次在完成恢复/继续操作后，因刷新期间后台机器人动画请求的 access-control 错误未通过 clean-boot 断言。诊断重跑通过，只观察到刷新取消请求；间歇性预加载/导航错误未完全排除，不能将 WebKit 存档标为稳定通过，见 [记录](evidence/2026-10-21-rc/webkit-save-f7e8528.json)。
+
+用户随后使用 `?relay=1&rc=f7e8528` 入口复测（当时首页不含构建编号，实际运行版本未核实）：电脑始终停在邀请码界面，未短暂出现第二位成员；手机无法加入，提示房主未确认。**实体跨网入房仍为 FAIL**。用户确认新版不再持续弹出用户名密码窗口；缺图及实际断网恢复因无法入房尚未复验。同一 Mac 的 Chromium 房主与独立 iPhone WebKit 客人经远端强制中继可达到 2/2 成员及双向聊天，但不能替代该实体失败。
+
+用户要求优先区分缓存版本：`78d7fc9` 将 Git 编号编译进 JS，首页显示 `v0.6.6 · 78d7fc9`，不会使用服务器清单覆盖正在运行的编号。首页以 `no-store` 查询发布清单，发现不同编号后提供手动刷新；不自动中断对局或清除存档。中继预检查现在必须实际收集到 relay candidate 才允许强制中继模式通过，避免仅 STUN 可用时误报。Node 22.23.4 下 62 文件 / 548 单测与两份类型检查通过；发布前校验 217 个壳文件及 36,109 个素材。真实手机的新版编号与入房结果待用户确认。
+
+`78d7fc9` 的 [CI](https://github.com/sky-tree/rich4-renew-web/actions/runs/39703675343) 通过。线上 Chrome / iPhone WebKit 模拟共 6 项版本专项检查通过：显示编号与真实发布清单一致、手机横竖屏边界、新版提示及手动刷新、清单不可用时保留编号；刷新后合成本地存储标记仍在。真实版本检查保留 SW；模拟清单响应测试单独禁用 SW，以避免 WebKit 绕过 Playwright 路由（初次因此失败，诊断确认模拟路由调用次数为 0）。这不是实际发布 A→B 的线上 SW 更新或存档兼容性证明。
 
 会话为无服务端状态的签名 token；修改密码不会立即撤销已签发会话，最长保留 8 小时。轮换签名密钥会同时撤销会话并影响 TURN，需受控操作。私有账号及 cookie 仅在内存使用，不写入测试报告。
 

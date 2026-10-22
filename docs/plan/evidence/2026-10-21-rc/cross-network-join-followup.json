@@ -1,0 +1,17 @@
+{
+  "reportedDate": "2026-10-22",
+  "requestedCandidate": "f7e8528",
+  "actualBrowserBuild": "not verified; title previously showed only package version",
+  "host": "macOS Chrome / home broadband",
+  "guest": "iOS Safari / mobile data",
+  "join": "failed",
+  "hostObservation": "Remained on invitation-code screen; second member never appeared",
+  "guestObservation": "Host confirmation timeout message; cannot enter room",
+  "authenticationObservation": "User confirms repeated username/password popups have stopped",
+  "remaining": [
+    "Confirm compiled build ID on both physical devices before retesting",
+    "Compare automatic connection path with forced relay",
+    "Recheck missing art and recovery after a physical network outage"
+  ],
+  "privateScreenshotCommitted": false
+}
