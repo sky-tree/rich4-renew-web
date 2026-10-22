@@ -4,12 +4,25 @@
   "origin": "https://rich4-staging.gopeaks.club/",
   "visibleLabel": "v0.6.6 · 78d7fc9",
   "node": "22.23.4",
-  "unitTests": { "passed": 548, "files": 62 },
-  "typeChecks": ["application passed", "e2e passed"],
-  "releaseChecks": { "shellFiles": 217, "privateAssets": 36109, "passed": true },
+  "unitTests": {
+    "passed": 548,
+    "files": 62
+  },
+  "typeChecks": [
+    "application passed",
+    "e2e passed"
+  ],
+  "releaseChecks": {
+    "shellFiles": 217,
+    "privateAssets": 36109,
+    "passed": true
+  },
   "browserChecks": {
     "passed": 6,
-    "projects": ["desktop-chrome", "ios-webkit"],
+    "projects": [
+      "desktop-chrome",
+      "ios-webkit"
+    ],
     "checks": [
       "Compiled revision matches actual release manifest",
       "Label stays within portrait and landscape viewports",
@@ -24,7 +37,12 @@
   "productionRevision": "66cf0b3",
   "limitations": [
     "iPhone WebKit is simulated on one Mac",
-    "Physical phone build confirmation and room join retest pending",
+    "Same-version physical forced-relay, image completeness and outage recovery pending",
     "No real online A-to-B service worker cycle proven by this version test"
-  ]
+  ],
+  "physicalDeviceFollowup": {
+    "bothCompiledRevisionsConfirmed": true,
+    "automaticJoinAndChat": "passed",
+    "date": "2026-10-22"
+  }
 }

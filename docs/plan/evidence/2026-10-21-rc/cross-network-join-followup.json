@@ -9,9 +9,28 @@
   "guestObservation": "Host confirmation timeout message; cannot enter room",
   "authenticationObservation": "User confirms repeated username/password popups have stopped",
   "remaining": [
-    "Confirm compiled build ID on both physical devices before retesting",
-    "Compare automatic connection path with forced relay",
-    "Recheck missing art and recovery after a physical network outage"
+    "Same-version physical forced-relay test",
+    "Phone image completeness and orientation",
+    "At least 20 dice operations and state agreement",
+    "Ten-second physical phone outage and recovery"
   ],
-  "privateScreenshotCommitted": false
+  "privateScreenshotCommitted": false,
+  "followup": {
+    "date": "2026-10-22",
+    "candidate": "78d7fc9",
+    "url": "https://rich4-staging.gopeaks.club/?rc=78d7fc9",
+    "compiledBuildConfirmedOnBothDevices": true,
+    "userReport": "两端编号一致，入房和聊天成功",
+    "join": "passed",
+    "bidirectionalChat": "passed",
+    "connectionPolicy": "automatic; no forced relay parameter",
+    "selectedCandidatePair": "not collected",
+    "cacheAsPreviousFailureCause": "unproven; connection policy also changed",
+    "remaining": [
+      "Same-version physical forced-relay test",
+      "Phone image completeness and orientation",
+      "At least 20 dice operations and state agreement",
+      "Ten-second physical phone outage and recovery"
+    ]
+  }
 }

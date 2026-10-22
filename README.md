@@ -59,7 +59,7 @@ npm run test:e2e:full
 ## 当前工程与验收状态
 
 - **候选代码与本地测试**：61 个文件 / 546 项 Vitest 通过；正式构建、36,109 文件素材摘要、真实 Nginx、UI 存档恢复、一局自然结算、WebGL 合成/回退和原始性能记录已补齐，具体范围见 [候选验收记录](docs/plan/14-release-candidate-acceptance.md)。
-- **独立受控环境**：[rich4-staging.gopeaks.club](https://rich4-staging.gopeaks.club/) 已部署候选 `78d7fc9`，首页显示 `v0.6.6 · 78d7fc9`，使用既有私测账号；原 `/rich4/` 仍保留 `66cf0b3`。候选已接入受控 PeerServer、短效 TURN 和一次登录会话；实体手机入房失败仍在排查。
+- **独立受控环境**：[rich4-staging.gopeaks.club](https://rich4-staging.gopeaks.club/) 已部署候选 `78d7fc9`，首页显示 `v0.6.6 · 78d7fc9`，使用既有私测账号；原 `/rich4/` 仍保留 `66cf0b3`。用户确认家宽电脑与移动数据手机编号一致，自动连接入口入房和双向聊天成功；同版本强制中继与实机断网恢复仍待验。
 - **验收仍未完成**：首次跨网发现的 BinaryPack 入房协议缺陷已修；用户以家宽电脑和移动数据手机确认双方成员显示、聊天互通。手机随后报告缺图、反复登录和断线无法恢复；已部署会话及重连修复，正在复测。跨 NAT 长局、3–5 人及多平台真机验收仍在进行。不能据已有测试判定 M7–M10 全部完成。
 
 ## 授权说明
