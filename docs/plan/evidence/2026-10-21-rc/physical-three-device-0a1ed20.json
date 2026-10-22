@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-22",
+  "candidate": "0a1ed20",
+  "visibleVersionRequested": "v0.6.6 · 0a1ed20",
+  "entry": "https://rich4-staging.gopeaks.club/?rc=0a1ed20",
+  "source": "User response to the scoped three-device physical acceptance question; not independently instrumented",
+  "question": "请三台设备关闭旧测试页，打开 https://rich4-staging.gopeaks.club/?rc=0a1ed20 ，确认首页均为 `v0.6.6 · 0a1ed20`。请先检查三台都能入房、看到3位成员并互通聊天；再由房主选择“只有玩家”开局，合计完成至少20次掷骰，确认日期/资金一致及有无“不同步”提示。若前一步失败，说明停在哪一步即可。",
+  "userResponse": "测试通过",
+  "devicesFromPriorUserIdentification": {
+    "host": "macOS Chrome, home broadband; exact versions not supplied",
+    "phone": "iOS Safari, mobile data; prior successful run described as good 5GA, current radio conditions not restated",
+    "third": "Second computer on public network; OS and browser not supplied"
+  },
+  "reportedStatus": "passed within the requested scope",
+  "reportedChecks": {
+    "allThreeOnRequestedBuild": "passed per response to scoped question",
+    "ordinaryEntryJoin": "passed",
+    "threeMembersVisible": "passed",
+    "allDeviceChat": "passed",
+    "playersOnlyGameStart": "passed",
+    "atLeast20DiceOperationsInTotal": "passed; exact count not supplied",
+    "datesAndFundsMatch": "passed by user observation",
+    "desyncNotice": "none reported within the requested test"
+  },
+  "limits": [
+    "The brief response confirms the requested scope; no per-step measurements or exact state values supplied",
+    "No physical ICE statistics or full SaveData comparison captured",
+    "No new physical outage/reconnect test requested in this run; earlier a128f6a recovery evidence remains separate",
+    "Does not establish five-device gameplay, a complete match, weak-network stability, or long-session TURN renewal",
+    "No screenshots, credentials, or proprietary assets retained in this record"
+  ]
+}
