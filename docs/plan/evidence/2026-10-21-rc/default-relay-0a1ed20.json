@@ -1,0 +1,283 @@
+{
+  "date": "2026-10-22",
+  "candidate": "0a1ed20",
+  "defaultEntry": "No relay query parameter; only optional rc cache-busting parameter for physical retest",
+  "deployment": {
+    "shellFilesVerified": 217,
+    "privateAssetHashesVerified": 36109,
+    "production": "66cf0b3 unchanged",
+    "partyConfigSha256": "2608f9e973ca503ed50d346f4f3f0d1ebca05e75ee15a2b188b6856b8dce0db2",
+    "rollback": "Restore staging link to a128f6a and config files from private control/party-runtime-before-default-relay-0a1ed20; restart staging party service",
+    "turnCapacity": "Unchanged 8388608 B/s total, 262144 B/s per allocation; quotas16/32"
+  },
+  "checks": {
+    "unitFiles": 67,
+    "unitTests": 564,
+    "appTypes": "passed",
+    "e2eTypes": "passed",
+    "localRuntimeSessionTests": 4,
+    "remoteConfigTests": 2,
+    "ci": "https://github.com/sky-tree/rich4-renew-web/actions/runs/39731091072"
+  },
+  "initialObservationFailure": {
+    "status": "failed",
+    "builds": [
+      "0a1ed20",
+      "0a1ed20",
+      "0a1ed20"
+    ],
+    "memberCounts": [
+      3,
+      3,
+      3
+    ],
+    "transport": [
+      {
+        "policies": [
+          "all",
+          "relay"
+        ],
+        "pairs": [
+          {
+            "localType": "relay",
+            "remoteType": "relay"
+          },
+          {
+            "localType": "relay",
+            "remoteType": "relay"
+          }
+        ],
+        "errors": []
+      },
+      {
+        "policies": [
+          "all",
+          "relay"
+        ],
+        "pairs": [
+          {
+            "localType": "relay",
+            "remoteType": "relay"
+          }
+        ],
+        "errors": []
+      },
+      {
+        "policies": [
+          "all",
+          "relay"
+        ],
+        "pairs": [
+          {
+            "localType": "relay",
+            "remoteType": "relay"
+          }
+        ],
+        "errors": []
+      }
+    ],
+    "reason": "Assertion included closed/unconnected PeerJS capability probes constructed with default all policy; selected connected pairs were relay/relay. Not marked as a passing test.",
+    "correction": "Enforce policy on connected transports, retain all observed probe policies separately; track chat completion independently of later statistics assertions."
+  },
+  "threeClientOrdinaryEntry": {
+    "status": "passed",
+    "builds": [
+      "0a1ed20",
+      "0a1ed20",
+      "0a1ed20"
+    ],
+    "mode": "3 browser pages on one Mac, server default policy; not separate physical networks",
+    "runtimePolicy": "relay",
+    "transport": [
+      {
+        "policies": [
+          "relay"
+        ],
+        "observedPolicies": [
+          "all",
+          "relay"
+        ],
+        "pairs": [
+          {
+            "localType": "relay",
+            "remoteType": "relay"
+          },
+          {
+            "localType": "relay",
+            "remoteType": "relay"
+          }
+        ],
+        "errors": []
+      },
+      {
+        "policies": [
+          "relay"
+        ],
+        "observedPolicies": [
+          "all",
+          "relay"
+        ],
+        "pairs": [
+          {
+            "localType": "relay",
+            "remoteType": "relay"
+          }
+        ],
+        "errors": []
+      },
+      {
+        "policies": [
+          "relay"
+        ],
+        "observedPolicies": [
+          "all",
+          "relay"
+        ],
+        "pairs": [
+          {
+            "localType": "relay",
+            "remoteType": "relay"
+          }
+        ],
+        "errors": []
+      }
+    ],
+    "memberCounts": [
+      3,
+      3,
+      3
+    ],
+    "notices": [
+      null,
+      null,
+      null
+    ],
+    "allClientChat": true
+  },
+  "fiveClientOrdinaryEntry": {
+    "status": "passed",
+    "builds": [
+      "0a1ed20",
+      "0a1ed20",
+      "0a1ed20",
+      "0a1ed20",
+      "0a1ed20"
+    ],
+    "mode": "5 browser pages on one Mac, server default policy; not separate physical networks",
+    "runtimePolicy": "relay",
+    "transport": [
+      {
+        "policies": [
+          "relay"
+        ],
+        "observedPolicies": [
+          "all",
+          "relay"
+        ],
+        "pairs": [
+          {
+            "localType": "relay",
+            "remoteType": "relay"
+          },
+          {
+            "localType": "relay",
+            "remoteType": "relay"
+          },
+          {
+            "localType": "relay",
+            "remoteType": "relay"
+          },
+          {
+            "localType": "relay",
+            "remoteType": "relay"
+          }
+        ],
+        "errors": []
+      },
+      {
+        "policies": [
+          "relay"
+        ],
+        "observedPolicies": [
+          "all",
+          "relay"
+        ],
+        "pairs": [
+          {
+            "localType": "relay",
+            "remoteType": "relay"
+          }
+        ],
+        "errors": []
+      },
+      {
+        "policies": [
+          "relay"
+        ],
+        "observedPolicies": [
+          "all",
+          "relay"
+        ],
+        "pairs": [
+          {
+            "localType": "relay",
+            "remoteType": "relay"
+          }
+        ],
+        "errors": []
+      },
+      {
+        "policies": [
+          "relay"
+        ],
+        "observedPolicies": [
+          "all",
+          "relay"
+        ],
+        "pairs": [
+          {
+            "localType": "relay",
+            "remoteType": "relay"
+          }
+        ],
+        "errors": []
+      },
+      {
+        "policies": [
+          "relay"
+        ],
+        "observedPolicies": [
+          "all",
+          "relay"
+        ],
+        "pairs": [
+          {
+            "localType": "relay",
+            "remoteType": "relay"
+          }
+        ],
+        "errors": []
+      }
+    ],
+    "memberCounts": [
+      5,
+      5,
+      5,
+      5,
+      5
+    ],
+    "notices": [
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "allClientChat": true
+  },
+  "limits": [
+    "Pages run on one Mac, not three or five physical networks",
+    "Lobby only, not three- or five-player gameplay",
+    "Physical a128f6a public-network relay join confirmed separately; current default-entry physical three-device checks pending"
+  ]
+}

@@ -1,0 +1,186 @@
+{
+  "date": "2026-10-22",
+  "candidate": "0a1ed20",
+  "browserBuilds": [
+    "0a1ed20",
+    "0a1ed20"
+  ],
+  "status": "passed",
+  "minimumDays": 20,
+  "mode": "Two Chromium pages on one Mac, server default policy, UI autopilot and real clocks",
+  "fault": "Closed actual guest RTCPeerConnection plus twenty-second outbound-message blackhole; not a physical network outage",
+  "equality": "Every serialized SaveData field except savedAt; SHA-256 checkpoints",
+  "checkpoints": [
+    {
+      "days": 0,
+      "hash": "b316b8845a3534ecd38540582c1e5890a7f77b82e6f2fe6c7b55d4772fc7f8a9",
+      "phase": "initial"
+    },
+    {
+      "days": 21,
+      "hash": "f442d6bc97fc80f8db173645615c30ed5c4b107d4bc36d44df100f5ec12809d0",
+      "phase": "at-least-20-days-before-drop"
+    },
+    {
+      "days": 21,
+      "hash": "f442d6bc97fc80f8db173645615c30ed5c4b107d4bc36d44df100f5ec12809d0",
+      "phase": "after-reconnect"
+    },
+    {
+      "days": 23,
+      "hash": "3a581101eac5b5cdb625536f1d778986b08cf1da7a3d717b424994b78eb6161a",
+      "phase": "continued-after-reconnect"
+    },
+    {
+      "days": 24,
+      "hash": "c31feb2fc2b691d17300d068e6d1ad545a33fd36c8df15ce47b4da44d5c32bde",
+      "phase": "after-twenty-second-message-blackhole"
+    },
+    {
+      "days": 26,
+      "hash": "dd926506baec0d4043ecc8b04960a08e7d9c7278efb44c7ec7aec27adde1676a",
+      "phase": "continued-after-message-blackhole"
+    }
+  ],
+  "guestTransport": [
+    {
+      "connection": "closed",
+      "ice": "closed"
+    },
+    {
+      "connection": "closed",
+      "ice": "closed"
+    },
+    {
+      "connection": "closed",
+      "ice": "closed"
+    },
+    {
+      "connection": "closed",
+      "ice": "closed"
+    },
+    {
+      "connection": "connected",
+      "ice": "connected"
+    }
+  ],
+  "signaling": [
+    {
+      "opened": 4,
+      "closed": 3,
+      "errors": 0,
+      "incoming": {
+        "OPEN": 4,
+        "OFFER": 3,
+        "CANDIDATE": 3
+      },
+      "httpErrors": [],
+      "pageErrors": [],
+      "sockets": [
+        {
+          "role": "client",
+          "closed": true,
+          "received": {
+            "OPEN": 1
+          },
+          "offersToCreatedRoom": []
+        },
+        {
+          "role": "client",
+          "closed": true,
+          "received": {
+            "OPEN": 1
+          },
+          "offersToCreatedRoom": []
+        },
+        {
+          "role": "room",
+          "closed": false,
+          "received": {
+            "OPEN": 1,
+            "OFFER": 3,
+            "CANDIDATE": 3
+          },
+          "offersToCreatedRoom": []
+        },
+        {
+          "role": "client",
+          "closed": true,
+          "received": {
+            "OPEN": 1
+          },
+          "offersToCreatedRoom": []
+        }
+      ]
+    },
+    {
+      "opened": 3,
+      "closed": 2,
+      "errors": 0,
+      "incoming": {
+        "OPEN": 3,
+        "ANSWER": 3,
+        "CANDIDATE": 3
+      },
+      "httpErrors": [],
+      "pageErrors": [],
+      "sockets": [
+        {
+          "role": "client",
+          "closed": true,
+          "received": {
+            "OPEN": 1
+          },
+          "offersToCreatedRoom": []
+        },
+        {
+          "role": "client",
+          "closed": true,
+          "received": {
+            "OPEN": 1
+          },
+          "offersToCreatedRoom": []
+        },
+        {
+          "role": "client",
+          "closed": false,
+          "received": {
+            "OPEN": 1,
+            "ANSWER": 3,
+            "CANDIDATE": 3
+          },
+          "offersToCreatedRoom": [
+            true,
+            true,
+            true
+          ]
+        }
+      ]
+    }
+  ],
+  "ice": [
+    {
+      "errors": [],
+      "candidateTypes": [
+        "relay",
+        "relay",
+        "relay",
+        "relay",
+        "relay"
+      ]
+    },
+    {
+      "errors": [],
+      "candidateTypes": [
+        "relay",
+        "relay",
+        "relay",
+        "relay"
+      ]
+    }
+  ],
+  "limits": [
+    "Two Chromium pages on one Mac, not separate physical networks",
+    "Not three-player gameplay or long-session TURN renewal"
+  ]
+}

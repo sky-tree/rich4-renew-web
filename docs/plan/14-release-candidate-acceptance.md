@@ -9,11 +9,11 @@
 | 源码分支 | `codex/release-candidate-acceptance` |
 | 审核入口 | [草稿 PR #11](https://github.com/sky-tree/rich4-renew-web/pull/11)，保持未合并 |
 | 单机/部署修复基线 | `7d72a63` |
-| 当前候选源码 | `a128f6a`，含大厅资源关闭、房主确认答案、静默检测和图片重试 |
+| 当前候选源码 | `0a1ed20`，含默认中继、准确入房错误、静默恢复与图片重试 |
 | 候选 URL | https://rich4-staging.gopeaks.club/ |
-| 强制中继验收入口 | https://rich4-staging.gopeaks.club/?relay=1&rc=a128f6a |
+| 普通验收入口（默认中继） | https://rich4-staging.gopeaks.club/?rc=0a1ed20 |
 | 服务器 | 既有 DevSpace VPS `216.23.82.22`，`ssh gopeaks` 登录 deploy，通过 sudo 使用 devspace |
-| 候选活动链接 | `/srv/devspace/repos/rich4-runtime/rich4-staging` → `rich4-staging-releases/a128f6a` |
+| 候选活动链接 | `/srv/devspace/repos/rich4-runtime/rich4-staging` → `rich4-staging-releases/0a1ed20` |
 | 既有版本 | `/srv/devspace/repos/rich4-runtime/rich4` 仍指向 `rich4-releases/66cf0b3`，原路由未修改 |
 | 进程 | `rich4-staging.service`、`rich4-staging-party.service`、`rich4-staging-turn.service`，均由 systemd 管理 |
 
@@ -67,17 +67,15 @@ PeerJS BinaryPack 将显式 `prev: undefined` 编码为 `null`，房主验证器
 
 用户在 `a128f6a` 实体复测报告：可入房、双向聊天，手机本次素材正常，断网后可重连回房间并恢复游戏；本次使用网络较好的 **5GA**，不能推定弱网稳定通过。提问要求断网 20 秒，回复未重述精确时长，也没有实体候选对统计；实际连接策略及测试相对 TURN 配额修正的时序未核实。同次新增失败：第二台电脑使用公共网络，在已有两台设备时无法加入；用户进一步明确：两台原设备停留在邀请码候房界面，第三台提示“房主未确认”；属于开局前失败，不能按开局后拒收新玩家解释，三设备实体验收为 FAIL。见 [当前实体反馈](evidence/2026-10-21-rc/physical-mobile-a128f6a.json)。补跑同一 Mac 三 Chromium 页面、强制中继配置候房对照通过：三端均显示 3 位成员，逐端发送聊天均可互见，见 [三客户端候房](evidence/2026-10-21-rc/party-three-client-lobby-a128f6a.json)。此项未复现公共网络，未验证三人开局；当前设计最多 8 人候房，开局后仅允许持有原座位 token 的玩家重连。
 
-
 随后同版本五 Chromium 客户端候房/全员聊天对照也通过，五端均显示 5 位成员，见 [五客户端候房](evidence/2026-10-21-rc/party-five-client-lobby-a128f6a.json)。这些测试没有复现公共网络，不能推定实体问题已修复。用户随后在第三台公共网络电脑、同版本 `a128f6a`、`?relay=1` 入口确认“能加入”。三设备实体候房入房在该路径限定通过；全员聊天、三人开局和状态一致仍未确认。该对照支持连接策略与故障有关，尚未取得实体 ICE 统计，不能进一步断言具体 NAT 或防火墙机制。
 
-排查发现旧版错误文案把未建立 DataChannel、找不到房间、房主明确拒绝都改写为“房主尚未确认加入”。新增回归先复现三种误报，现已在源码中保留实际拒绝原因，并区分网络连接失败与真正的加入确认超时；4 项专项、全量 67 文件 / 564 单测及应用类型检查通过。此文案修正在 `fa3760c` 完成，未单独部署；将随下一个候选发布，不将其当作公共网络连接修复。
+排查发现旧版错误文案把未建立 DataChannel、找不到房间、房主明确拒绝都改写为“房主尚未确认加入”。新增回归先复现三种误报，现已在源码中保留实际拒绝原因，并区分网络连接失败与真正的加入确认超时；4 项专项、全量 67 文件 / 564 单测及应用类型检查通过。此文案修正在 `fa3760c` 完成，未单独部署，现随 `0a1ed20` 发布；不将文案修正本身当作公共网络连接修复。
 
 `78d7fc9` 的 [CI](https://github.com/sky-tree/rich4-renew-web/actions/runs/39703675343) 通过。线上 Chrome / iPhone WebKit 模拟共 6 项版本专项检查通过：显示编号与真实发布清单一致、手机横竖屏边界、新版提示及手动刷新、清单不可用时保留编号；刷新后合成本地存储标记仍在。真实版本检查保留 SW；模拟清单响应测试单独禁用 SW，以避免 WebKit 绕过 Playwright 路由（初次因此失败，诊断确认模拟路由调用次数为 0）。这不是实际发布 A→B 的线上 SW 更新或存档兼容性证明。
 
 会话为无服务端状态的签名 token；修改密码不会立即撤销已签发会话，最长保留 8 小时。轮换签名密钥会同时撤销会话并影响 TURN，需受控操作。私有账号及 cookie 仅在内存使用，不写入测试报告。
 
-
-下一候选将受控 staging 的 `/api/party-config` 默认设为 `iceTransportPolicy: relay`，普通入口无需手动 `relay=1`；保留短效凭据、现有端口和带宽上限。原生产路由不接入该 staging API。源码网络检查显示“已使用轉送伺服器聯機”，不把策略强制中继误称为网络只能中继。运行时配置回归先失败后通过；4 项运行时/会话、67 文件 / 564 单测及两份类型检查通过。后续普通入口测试将检查各客户端真实策略和选中候选对类型。
+`0a1ed20` 已将受控 staging 的 `/api/party-config` 默认设为 `iceTransportPolicy: relay`，普通入口无需手动 `relay=1`；保留短效凭据、现有端口和带宽上限。原生产路由不接入该 staging API。源码网络检查显示“已使用轉送伺服器聯機”，不把策略强制中继误称为网络只能中继。运行时配置回归先失败后通过；4 项运行时/会话、67 文件 / 564 单测及两份类型检查通过。发布校验 217 壳文件及 36,109 素材摘要通过，[CI](https://github.com/sky-tree/rich4-renew-web/actions/runs/39731091072) 通过。候选联机配置源码摘要与提交一致，原生产仍为 `66cf0b3`。不带 `relay=1` 的普通入口，三及五 Chromium 客户端候房/全员聊天通过；所有实际连接配置均为 relay、选中候选对均 relay/relay，未记录 ICE 错误。首次统计断言错误纳入 PeerJS 临时能力探测的默认 all 策略，测试未通过；修正为检查实际 connected 连接并单列探测策略后通过，失败与修正均保留。见 [普通入口中继证据](evidence/2026-10-21-rc/default-relay-0a1ed20.json)。另在普通入口完成至少 20 天真实时钟游戏恢复：第 21 天连接替换，第 23 天继续，第 24 天消息黑洞恢复，再继续至第 26 天；六个完整 SaveData 检查点一致，双端无 ICE 错误，见 [普通入口游戏恢复](evidence/2026-10-21-rc/party-game-default-0a1ed20.json)。当前候选实体三人普通入口、聊天与至少20次掷骰复测待反馈。
 
 ## 联机设施与私有配置
 
@@ -110,12 +108,12 @@ E2E_BASE_URL=https://rich4-staging.gopeaks.club/ \
 npx playwright test tests/e2e/party-lobby.spec.ts tests/e2e/turn-relay.spec.ts \
   --project=desktop-chrome --reporter=list
 
-# 候房多人对照；仍需上述私有环境认证变量
-E2E_PARTY=1 E2E_PARTY_CLIENTS=3 E2E_FORCE_RELAY=1 \
+# 默认策略候房验证（不附加 relay 参数）；仍需上述私有环境认证变量
+E2E_PARTY=1 E2E_PARTY_CLIENTS=3 E2E_FORCE_RELAY=0 \
   npx playwright test tests/e2e/party-lobby.spec.ts --project=desktop-chrome --reporter=list
 ```
 
-本地发布回滚测试使用生成的不同 A/B 入口，不是历史正式包兼容性的证明。线上回滚保留 `a5f27de` 和 `7d72a63` 目录，需要在受控窗口原子切回 staging 链接，并重新验证 SW、清单、素材和 UI 存档；回滚也不应触碰既有生产链接。停止候选服务或删除 staging hostname 路由可撤销独立入口；若停止联机设施，还需撤销本次三条 UFW 规则，保留私有密钥文件直到受控清理。
+本地发布回滚测试使用生成的不同 A/B 入口，不是历史正式包兼容性的证明。线上回滚保留 `a5f27de` 和 `7d72a63` 目录，需要在受控窗口原子切回 staging 链接，并重新验证 SW、清单、素材和 UI 存档；回滚也不应触碰既有生产链接。`0a1ed20` 的受控回滚还需从私有 `control/party-runtime-before-default-relay-0a1ed20` 恢复联机配置，并只重启候选 party 服务；应用链接可切回 `a128f6a`。已证实的 TURN 带宽容量修正独立保留。停止候选服务或删除 staging hostname 路由可撤销独立入口；若停止联机设施，还需撤销本次三条 UFW 规则，保留私有密钥文件直到受控清理。
 
 新增专项复测（认证与素材使用上述私有环境开关）：
 

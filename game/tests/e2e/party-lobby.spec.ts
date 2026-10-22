@@ -20,13 +20,18 @@ test(`${clientCount} real PeerJS clients see all members and exchange lobby chat
     } });
     (window as any).__lobbyTransport = async () => {
       const pairs: { localType?: string; remoteType?: string }[] = [];
-      for (const pc of peers.filter(item => item.connectionState === 'connected')) {
+      const connected = peers.filter(item => item.connectionState === 'connected');
+      for (const pc of connected) {
         const stats = await pc.getStats();
         const pair = [...stats.values()].find(item => item.type === 'candidate-pair' && item.state === 'succeeded' && item.nominated);
         pairs.push({ localType: stats.get(pair?.localCandidateId)?.candidateType,
           remoteType: stats.get(pair?.remoteCandidateId)?.candidateType });
       }
-      return { policies: [...new Set(peers.map(pc => pc.getConfiguration().iceTransportPolicy ?? 'all'))], pairs, errors };
+      // PeerJS also constructs throwaway capability probes with default ICE.
+      // Enforce relay on actual connected transports, retaining probe policies
+      // separately so a feature check cannot masquerade as a live direct path.
+      return { policies: [...new Set(connected.map(pc => pc.getConfiguration().iceTransportPolicy ?? 'all'))],
+        observedPolicies: [...new Set(peers.map(pc => pc.getConfiguration().iceTransportPolicy ?? 'all'))], pairs, errors };
     };
   });
   const clients = [page];
@@ -35,6 +40,7 @@ test(`${clientCount} real PeerJS clients see all members and exchange lobby chat
   let runtimePolicy = 'unknown';
   let transport: { policies: string[]; pairs: { localType?: string; remoteType?: string }[]; errors: number[] }[] = [];
   let completed = false;
+  let chatCompleted = false;
   try {
     await Promise.all(clients.map(p => p.goto(forceRelay ? './?relay=1' : './')));
     runtimePolicy = await page.evaluate(async () => (await (await fetch('./api/party-config', { cache: 'no-store' })).json()).iceTransportPolicy ?? 'all');
@@ -61,6 +67,7 @@ test(`${clientCount} real PeerJS clients see all members and exchange lobby chat
       await sender.locator('.pc-form button').click();
       for (const receiver of clients) await expect(receiver.locator('.pc-log')).toContainText(text);
     }
+    chatCompleted = true;
     transport = await Promise.all(clients.map(p => p.evaluate(() => (window as any).__lobbyTransport())));
     if (forceRelay || runtimePolicy === 'relay') {
       for (const client of transport) {
@@ -76,7 +83,7 @@ test(`${clientCount} real PeerJS clients see all members and exchange lobby chat
       runtimePolicy, transport,
       memberCounts: await Promise.all(clients.map(p => p.locator('.pt-seat:not(.cpu)').count())),
       notices: await Promise.all(clients.map(p => p.locator('.pt-err').textContent({ timeout: 500 }).catch(() => null))),
-      allClientChat: completed }), 'application/json');
+      allClientChat: chatCompleted }), 'application/json');
     await Promise.all(clients.slice(1).map(p => p.close()));
   }
 });
