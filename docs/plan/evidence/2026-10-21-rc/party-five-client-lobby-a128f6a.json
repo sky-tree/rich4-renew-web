@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-22",
+  "status": "passed",
+  "builds": [
+    "a128f6a",
+    "a128f6a",
+    "a128f6a",
+    "a128f6a",
+    "a128f6a"
+  ],
+  "mode": "5 browser pages on one Mac, forced remote relay configuration; not separate physical networks",
+  "memberCounts": [
+    5,
+    5,
+    5,
+    5,
+    5
+  ],
+  "notices": [
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "allClientChat": true,
+  "limits": [
+    "Pre-start lobby only, not five-player gameplay",
+    "All clients on one Mac; does not reproduce the public network",
+    "Forced-relay configuration; actual selected pairs not captured"
+  ]
+}

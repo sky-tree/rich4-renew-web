@@ -561,26 +561,29 @@ async function open(id?: string): Promise<Peer | null> {
   });
 }
 
-async function connect(peer: Peer, id: string): Promise<DataConnection | null> {
+async function connect(peer: Peer, id: string, failed?: (reason: string) => void): Promise<DataConnection | null> {
   try {
     await refreshPartyNetConfig();
     if (peer.options) peer.options.config = buildPeerOptions().config;
-  } catch { return null; }
+  } catch { failed?.('聯機設定暫時無法載入\n請確認登入狀態後再試一次'); return null; }
   return new Promise(resolve => {
     let c: DataConnection;
-    try { c = peer.connect(id, { reliable: true }); } catch { resolve(null); return; }
+    const unavailable = '無法建立與房主的網路連線\n請確認網路或改用轉送連線後重試';
+    try { c = peer.connect(id, { reliable: true }); } catch { failed?.(unavailable); resolve(null); return; }
     let done = false;
-    const finish = (accepted: boolean) => {
+    const finish = (accepted: boolean, reason = unavailable) => {
       if (done) return;
       done = true;
       clearTimeout(timer);
       peer.off('error', peerError);
-      if (!accepted) c.close();
+      if (!accepted) { failed?.(reason); c.close(); }
       resolve(accepted ? c : null);
     };
     const fail = () => finish(false);
-    const peerError = (e: unknown) => { if ((e as { type?: string }).type === 'peer-unavailable') fail(); };
-    const timer = setTimeout(fail, 10000);
+    const peerError = (e: unknown) => {
+      if ((e as { type?: string }).type === 'peer-unavailable') finish(false, '找不到房間\n請確認邀請碼與房主是否仍在候房畫面');
+    };
+    const timer = setTimeout(() => finish(false, '與房主的網路連線逾時\n請讓房主保持候房畫面，或改用其他網路後重試'), 10000);
     c.on('open', () => finish(true));
     c.on('error', fail);
     peer.on('error', peerError);
@@ -741,6 +744,7 @@ export class Room {
   private unverifiedAnswers = new Map<string, { peer: string; seq: number; v: unknown; seat?: number }>();
   private tokenState = createReconnectTokenState();
   private closed = false;
+  private joinFailure = '';
   myId = '';
 
   constructor(readonly me: { name: string; character: number; region?: string; nick?: string }) {}
@@ -821,7 +825,7 @@ export class Room {
     this.asGuest(peer);
     if (!(await this.reach())) {
       this.close();
-      throw new Error('房主尚未確認加入\n請確認雙方版本與網路後再試一次');
+      throw new Error(this.joinFailure || '無法建立與房主的網路連線');
     }
   }
 
@@ -847,8 +851,10 @@ export class Room {
   }
 
   private async reach(prev?: string): Promise<boolean> {
-    const c = this.peer && await connect(this.peer, roomId(this.code));
+    this.joinFailure = '';
+    const c = this.peer && await connect(this.peer, roomId(this.code), reason => { this.joinFailure = reason; });
     if (!c) return false;
+    this.joinFailure = '連線已建立，房主尚未確認加入\n請確認雙方版本後再試一次';
     this.toHost = c;
     let acknowledge: (accepted: boolean) => void = () => {};
     const acknowledged = new Promise<boolean>(resolve => { acknowledge = resolve; });
@@ -1082,7 +1088,8 @@ export class Room {
     else if (m.t === 'kicked') this.away(m.id, m.seat);
     else if (m.t === 'bye') {
       if (m.retry === true) { this.toHost?.close(); return; }
-      this.kicked = /請出/.test(m.why ?? ''); this.onStatus(m.why ?? '房間已滿'); this.close();
+      this.joinFailure = m.why ?? '房間已滿';
+      this.kicked = /請出/.test(m.why ?? ''); this.onStatus(this.joinFailure); this.close();
     }
   }
 

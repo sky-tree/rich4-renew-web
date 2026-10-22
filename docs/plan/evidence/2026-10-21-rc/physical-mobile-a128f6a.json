@@ -14,16 +14,21 @@
     "thirdDevice": "second computer on public network could not join while two devices were present"
   },
   "pending": [
-    "Whether third device joined before or after game start",
-    "Exact third-device error text",
     "Third-device browser/build and relay path",
     "Whether outage lasted precisely 20 seconds; question requested 20 seconds, response does not restate duration",
-    "Physical 20 dice operations not confirmed"
+    "Physical 20 dice operations not confirmed",
+    "Public-network third device forced-relay control on unchanged a128f6a"
   ],
   "limits": [
     "No physical selected-candidate statistics; actual ICE policy/path unverified",
     "Test timing relative to TURN bandwidth change not established",
     "One successful good-network mobile run does not establish weak-network stability",
     "No proprietary screenshots or account details retained"
-  ]
+  ],
+  "thirdDeviceClarification": {
+    "lobbyState": "Original two devices remained on the invitation-code lobby before game start",
+    "error": "房主未确认",
+    "status": "failed",
+    "interpretation": "Pre-start failure; cannot be explained by rejection of mid-game strangers. Old message also covers transport connection failure, so actual failed stage is unknown."
+  }
 }
