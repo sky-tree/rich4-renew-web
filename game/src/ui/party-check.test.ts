@@ -37,7 +37,7 @@ it('requires an actual relay candidate when the game forces relay, even if STUN 
 it('permits a relay-only path and still permits STUN in normal automatic mode', async () => {
   network(['relay']);
   setPartyNetConfig({ iceTransportPolicy: 'relay', iceServers: [{ urls: 'turn:test.example' }] });
-  expect(await checkNetwork()).toMatchObject({ ok: true });
+  expect(await checkNetwork()).toEqual({ ok: true, note: '已使用轉送伺服器聯機' });
   network(['srflx']);
   setPartyNetConfig(null);
   expect(await checkNetwork()).toEqual({ ok: true });

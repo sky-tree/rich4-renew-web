@@ -8,6 +8,9 @@ export function makePartyConfig(secret, publicIp, now = Date.now()) {
   const credential = createHmac('sha1', secret).update(username).digest('base64');
   return {
     expiresAt: expires * 1000,
+    // The controlled staging network uses TURN for every participant, including
+    // public networks where automatic ICE failed the physical join test.
+    iceTransportPolicy: 'relay',
     peerServer: { host: 'rich4-staging.gopeaks.club', port: 443, path: '/peerjs', secure: true },
     iceServers: [
       { urls: `stun:${publicIp}:3478` },

@@ -60,5 +60,7 @@ export async function checkNetwork(): Promise<NetCheck> {
     return { ok: false, title: '連不上轉送伺服器', text: '目前啟用了轉送連線，但這個網路連不到轉送伺服器。\n請稍後重新檢查，或換個 Wi-Fi／行動數據網路再試。', retry: true };
   if (!kinds.has('srflx') && !kinds.has('relay'))
     return { ok: false, title: '網路不支援聯機', text: '這支手機目前的網路擋住了手機之間的連線，\n無法進行多人對戰。\n請換成其他 Wi-Fi 或行動數據再試。', retry: true };
+  if (resolvePartyNetConfig().iceTransportPolicy === 'relay')
+    return { ok: true, note: '已使用轉送伺服器聯機' };
   return kinds.has('srflx') ? { ok: true } : { ok: true, note: '你的網路只能透過轉送伺服器聯機，可能會比較慢' };
 }

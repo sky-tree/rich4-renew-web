@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import { makePartyConfig } from './config.mjs';
 
+test('private staging uses relay without requiring a query parameter', () => {
+  const cfg = makePartyConfig('test-only-signing-secret-with-more-than-32-chars', '203.0.113.1');
+  assert.equal(cfg.iceTransportPolicy, 'relay');
+});
+
 test('REST TURN credentials expire in one hour and never expose the signing secret', () => {
   const secret = 'test-only-signing-secret-with-more-than-32-chars';
   const now = 1700000000000;

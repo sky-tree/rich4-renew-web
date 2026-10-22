@@ -202,7 +202,7 @@ test('two clients preserve authoritative state through gameplay and transport re
   } finally {
     await retainEvidence(testInfo, 'party-gameplay.json', JSON.stringify({ candidate, browserBuilds,
       status: completed ? 'passed' : 'failed', minimumDays,
-      mode: `Two Chromium pages on one Mac, ${forceRelay ? 'forced remote relay' : 'remote signaling and automatic ICE'}, UI autopilot and real clocks`,
+      mode: `Two Chromium pages on one Mac, ${forceRelay ? 'forced remote relay query' : 'server default policy'}, UI autopilot and real clocks`,
       fault: `Closed actual guest RTCPeerConnection${process.env.E2E_NETWORK_BLACKHOLE === '1' ? ' plus twenty-second outbound-message blackhole' : ''}; not a physical network outage`,
       equality: 'Every serialized SaveData field except savedAt; SHA-256 checkpoints', checkpoints,
       guestTransport: await guest.evaluate(() => (window as any).__partyTransportTest?.states()).catch(() => []),

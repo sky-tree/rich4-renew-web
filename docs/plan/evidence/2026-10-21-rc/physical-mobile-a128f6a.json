@@ -16,8 +16,7 @@
   "pending": [
     "Third-device browser/build and relay path",
     "Whether outage lasted precisely 20 seconds; question requested 20 seconds, response does not restate duration",
-    "Physical 20 dice operations not confirmed",
-    "Public-network third device forced-relay control on unchanged a128f6a"
+    "Physical 20 dice operations not confirmed"
   ],
   "limits": [
     "No physical selected-candidate statistics; actual ICE policy/path unverified",
@@ -30,5 +29,14 @@
     "error": "房主未确认",
     "status": "failed",
     "interpretation": "Pre-start failure; cannot be explained by rejection of mid-game strangers. Old message also covers transport connection failure, so actual failed stage is unknown."
+  },
+  "thirdDeviceRelayControl": {
+    "request": "Third public-network computer, unchanged a128f6a, ?relay=1, original two devices still in invitation-code lobby",
+    "userResponse": "能加入",
+    "join": "passed",
+    "limits": [
+      "Three-way chat and three-player gameplay not confirmed",
+      "No physical selected-candidate statistics retained"
+    ]
   }
 }
