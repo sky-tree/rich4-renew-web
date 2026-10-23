@@ -128,7 +128,7 @@ export function auditAssets(assetsDir, opts = {}) {
 
     // Tool and high-end card cinematic films
     if (existsSync(join(src, 'maps/remake/cinema'))) {
-      for (const d of readdirSync(join(src, 'maps/remake/cinema', { withFileTypes: true }))) {
+      for (const d of readdirSync(join(src, 'maps/remake/cinema'), { withFileTypes: true })) {
         if (!d.isDirectory()) continue;
         for (const f of readdirSync(join(src, `maps/remake/cinema/${d.name}`))) {
           if (f.endsWith('.webp')) record(`maps/remake/cinema/${d.name}/${f}`, 'core', 'core');
