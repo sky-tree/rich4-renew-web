@@ -18,6 +18,9 @@
  * room and every phone looking at the list connects to it, and when it goes another one takes the id over and the
  * rooms announce themselves again.
  */
+import { partyVersion, partyVersionError, partyVersionMessage, PARTY_PROTOCOL_VERSION, PARTY_RULES_VERSION } from './party-version';
+export { PARTY_PROTOCOL_VERSION, PARTY_RULES_VERSION } from './party-version';
+
 import Peer, { type DataConnection } from 'peerjs';
 import { CHARACTERS } from '../core/characters';
 import { watchPartyConnection } from './party-liveness';
@@ -87,8 +90,6 @@ export function myRegion(): string {
 /** What the host sends when the game starts. */
 export interface StartMsg { settings: import('../core/types').GameSettings; seats: Record<string, number>; proto?: number; rules?: string }
 
-export const PARTY_PROTOCOL_VERSION = 1;
-export const PARTY_RULES_VERSION = '0.6.6';
 export const MAX_PUBLIC_ROOMS = 100;
 export const MAX_MSG_BYTES = 65536;
 export const MAX_LOG_REPLAY = 5000;
@@ -108,17 +109,17 @@ export type Msg =
       reconnectToken?: string;
     }
   | { t: 'char'; character: number; nick?: string }
-  | { t: 'lobby'; members: Member[]; map: string; shared: boolean }
+  | { t: 'lobby'; members: Member[]; map: string; shared: boolean; proto?: number; rules?: string }
   | { t: 'start'; start: StartMsg }
   | { t: 'ans'; seq: number; v: unknown; u?: boolean; seat?: number }
-  | { t: 'log'; from: number; answers: [unknown, boolean][]; total: number }
+  | { t: 'log'; from: number; answers: [unknown, boolean][]; total: number; proto?: number; rules?: string }
   | { t: 'digest'; seq: number; h: number }
   | { t: 'chat'; line: ChatLine }
   | { t: 'vote'; target: string; voter: string }
   | { t: 'votes'; target: string; voters: string[] }
   | { t: 'kicked'; id: string; seat?: number }
   | { t: 'ping' | 'pong' }
-  | { t: 'bye'; why?: string; retry?: boolean };
+  | { t: 'bye'; why?: string; retry?: boolean; incompatible?: boolean };
 
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -462,9 +463,7 @@ export function validateIncomingMsg(
       if (typeof m.character !== 'number' || !Number.isInteger(m.character) || m.character < 0 || m.character >= 12) {
         return { ok: false, reason: 'invalid-character' };
       }
-      if (m.proto !== undefined && m.proto !== PARTY_PROTOCOL_VERSION) {
-        return { ok: false, reason: 'version-mismatch' };
-      }
+      { const reason = partyVersionError(m); if (reason) return { ok: false, reason }; }
       if (m.prev !== undefined && (typeof m.prev !== 'string' || !SAFE_PEER_ID_RE.test(m.prev))) {
         return { ok: false, reason: 'invalid-prev-id' };
       }
@@ -534,8 +533,14 @@ export function validateIncomingMsg(
       }
       return { ok: true, msg: m as Msg };
     case 'lobby':
-    case 'start':
-    case 'log':
+    case 'log': {
+      const reason = partyVersionError(m);
+      return reason ? { ok: false, reason } : { ok: true, msg: m as Msg };
+    }
+    case 'start': {
+      const reason = partyVersionError(m.start);
+      return reason ? { ok: false, reason } : { ok: true, msg: m as Msg };
+    }
     case 'digest':
     case 'votes':
     case 'kicked':
@@ -741,6 +746,8 @@ export class Room {
   kickedSeats = new Set<number>();
   /** This phone was sent away (the game screen goes back to the title). */
   kicked = false;
+  /** Compatibility refusal is terminal, including during a host handover. */
+  refused = false;
   private kickedIds = new Set<string>();
 
   private peer: Peer | null = null;
@@ -890,7 +897,13 @@ export class Room {
       }
     };
     c.on('data', d => {
+      if (this.closed || this.toHost !== c) return;
       const checked = validateIncomingMsg(d);
+      if (!checked.ok && /^(version|rules)-mismatch$/.test(checked.reason)) {
+        this.refuse(checked.reason);
+        acknowledge(false);
+        return;
+      }
       if (checked.ok) {
         const m = checked.msg;
         if (m.t === 'ping' || m.t === 'pong') return;
@@ -948,11 +961,14 @@ export class Room {
 
   private guest(c: DataConnection) {
     watchPartyConnection(c, () => this.dropGuest(c));
+    let rejected = false;
     c.on('data', d => {
+      if (this.closed || rejected) return;
       const checked = validateIncomingMsg(d);
       if (!checked.ok) {
-        if (checked.reason === 'version-mismatch') {
-          c.send({ t: 'bye', why: '遊戲版本不一致，請重新整理網頁更新後再連線' } satisfies Msg);
+        if (/^(version|rules)-mismatch$/.test(checked.reason)) {
+          rejected = true;
+          c.send({ t: 'bye', why: partyVersionMessage(checked.reason), incompatible: true } satisfies Msg);
         }
         return;
       }
@@ -983,7 +999,7 @@ export class Room {
         if (this.started) {
           // Back after a drop, or to a new host: what it missed; it sends back what this phone lacks.
           const from = Math.max(0, Math.min(m.have ?? 0, this.log.length));
-          c.send({ t: 'log', from, answers: this.log.slice(from), total: this.log.length } satisfies Msg);
+          c.send({ t: 'log', ...partyVersion(), from, answers: this.log.slice(from), total: this.log.length } satisfies Msg);
           for (const x of this.members) if (x.id === c.peer) x.away = false;
           this.lobbyChanged();
           this.onStatus('');
@@ -1076,7 +1092,7 @@ export class Room {
   }
 
   private lobbyChanged() {
-    const m: Msg = { t: 'lobby', members: this.members, map: this.map, shared: this.shared };
+    const m: Msg = { t: 'lobby', ...partyVersion(), members: this.members, map: this.map, shared: this.shared };
     for (const c of this.guests.values()) c.open && c.send(m);
     this.onLobby();
   }
@@ -1127,8 +1143,17 @@ export class Room {
     else if (m.t === 'bye') {
       if (m.retry === true) { this.toHost?.close(); return; }
       this.joinFailure = m.why ?? '房間已滿';
+      // Earlier Web hosts report incompatibility only as text, including after a handover.
+      this.refused = m.incompatible === true || /版本/.test(m.why ?? '');
       this.kicked = /請出/.test(m.why ?? ''); this.onStatus(this.joinFailure); this.close();
     }
+  }
+
+  private refuse(reason: string) {
+    this.refused = true;
+    this.joinFailure = partyVersionMessage(reason);
+    this.onStatus(this.joinFailure);
+    this.close();
   }
 
   /** Someone was voted out (told by the host): this phone leaves, or forgets them (the host's leaving starts the hand-over). */
@@ -1143,11 +1168,14 @@ export class Room {
 
   /** Host: starts the game for everyone. */
   start(s: StartMsg) {
+    s = { ...s, ...partyVersion() };
     const m: Msg = { t: 'start', start: s };
     for (const c of this.guests.values()) c.open && c.send(m);
     this.begin(s);
   }
   private begin(s: StartMsg) {
+    const reason = partyVersionError(s);
+    if (reason) { this.refuse(reason); return; }
     this.started = s;
     this.mine = new Set(Object.entries(s.seats).filter(([id]) => id === this.myId).map(([, seat]) => seat));
     this.onStart(s);

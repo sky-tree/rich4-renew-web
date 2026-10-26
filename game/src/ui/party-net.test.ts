@@ -9,6 +9,7 @@ import {
   generateRoomCode,
   ICE_SERVERS,
   PARTY_PROTOCOL_VERSION,
+  PARTY_RULES_VERSION,
   prepareReconnectHandshake,
   resolvePartyNetConfig,
   setPartyNetConfig,
@@ -42,7 +43,7 @@ describe('Party networking security, credential isolation and protocol validatio
 
   it('validates protocol version, message size, sequence bounds and payload structure (M5-03)', () => {
     expect(validateIncomingMsg(null)).toEqual({ ok: false, reason: 'invalid-object' });
-    expect(validateIncomingMsg({ t: 'hi', name: 'A', character: 0, proto: PARTY_PROTOCOL_VERSION }).ok).toBe(true);
+    expect(validateIncomingMsg({ t: 'hi', name: 'A', character: 0, proto: PARTY_PROTOCOL_VERSION, rules: PARTY_RULES_VERSION }).ok).toBe(true);
     expect(validateIncomingMsg({ t: 'hi', name: 'A', character: 0, proto: PARTY_PROTOCOL_VERSION + 1 })).toEqual({
       ok: false,
       reason: 'version-mismatch',

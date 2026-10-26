@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { EventEmitter } from 'node:events';
-import { commitReconnectToken, Room } from './party-net';
+import { commitReconnectToken, PARTY_PROTOCOL_VERSION, PARTY_RULES_VERSION, Room } from './party-net';
 
 it('same-peer reconnect retains its seat and can answer the next lockstep question', async () => {
   const token = 'test-only-reconnect-token-32-characters';
@@ -12,7 +12,7 @@ it('same-peer reconnect retains its seat and can answer the next lockstep questi
   const connection = new EventEmitter() as any;
   connection.peer = 'guest-test'; connection.open = true; connection.send = () => {};
   (host as any).guest(connection);
-  connection.emit('data', { t: 'hi', name: 'Guest', character: 1, prev: 'guest-test',
+  connection.emit('data', { t: 'hi', proto: PARTY_PROTOCOL_VERSION, rules: PARTY_RULES_VERSION, name: 'Guest', character: 1, prev: 'guest-test',
     reconnectToken: token, tokenCommit: commitReconnectToken('next-test-only-reconnect-token-32'), have: 0 });
   expect(host.started.seats['guest-test']).toBe(1);
   host.expectQuestionSeat(0, 1);

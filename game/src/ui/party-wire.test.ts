@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { pack, unpack } from 'peerjs-js-binarypack';
-import { Room, validateIncomingMsg } from './party-net';
+import { PARTY_PROTOCOL_VERSION, PARTY_RULES_VERSION, Room, validateIncomingMsg } from './party-net';
 
 afterEach(() => { vi.useRealTimers(); });
 
@@ -17,7 +17,7 @@ it('first join survives the actual PeerJS BinaryPack wire format and waits for h
     validation = validateIncomingMsg(wire);
     if ((validation as { ok: boolean }).ok) {
       accepted = true;
-      connection.emit('data', { t: 'lobby', members: [{ id: 'guest-test', name: 'Guest', character: 1 }], map: '2', shared: false });
+      connection.emit('data', { t: 'lobby', proto: PARTY_PROTOCOL_VERSION, rules: PARTY_RULES_VERSION, members: [{ id: 'guest-test', name: 'Guest', character: 1 }], map: '2', shared: false });
     }
   };
   const room = new Room({ name: 'Guest', character: 1 });

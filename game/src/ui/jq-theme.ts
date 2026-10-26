@@ -25,12 +25,19 @@ const WORDS: [string, string][] = [
     '廣播站', '大字報', '跳大神', '關牛棚', '牛棚', '招待所', '供銷社', '宣傳站', '記工分', '挖紅薯', '民兵打靶', '天上掉餡餅', '第一汽車製造廠',
     '人民公园', '人民银行', '反帝医院', '黑市小贩', '有奖销售', '票证兑换点', '内部认购', '幸福摩托', '上海轿车', '解放卡车', '广播站', '大字报',
     '关牛棚', '招待所', '供销社', '宣传站', '记工分', '挖红薯', '天上掉馅饼', '第一汽车制造厂'].map(w => [w, w] as [string, string]),
+  // the companies' fees, by the enterprise in that slot (stocks.ts FEE_NAME; the user 2026-10-23: 「那個時候哪有電腦啊」)
+  ['電腦費', '收音機修理費'], ['修車費', '解放卡車修理費'], ['保險費', '勞保費'], ['工程費', '基建工程費'], ['旅遊費', '串聯接待費'],
+  ['电脑费', '收音机修理费'], ['修车费', '解放卡车修理费'], ['保险费', '劳保费'], ['工程费', '基建工程费'], ['旅游费', '串联接待费'],
+  ['收音機修理費', '收音機修理費'], ['解放卡車修理費', '解放卡車修理費'], ['勞保費', '勞保費'], ['基建工程費', '基建工程費'], ['串聯接待費', '串聯接待費'],
+  // other words of today: shares → subscriptions
+  ['股票', '認購券'], ['股东', '认购户'], ['股東', '認購戶'], ['认购券', '认购券'],
   // 繁體
   ['樂透', '有獎銷售'], ['道具店', '黑市小販'], ['百貨公司', '黑市小販'], ['卡片屋', '票證兌換點'], ['點券', '票證'], ['監獄', '牛棚'], ['坐牢', '關牛棚'],
   ['醫院', '反帝醫院'], ['銀行', '人民銀行'], ['新聞', '廣播站'], ['魔法屋', '跳大神'], ['占卜師', '神婆'], ['探監', '探牛棚'], ['黑市', '投機倒把'], ['股市', '內部認購'],
   ['買進', '認購'], ['賣出', '轉讓'], ['企鵝挖寶', '挖紅薯'], ['七彩氣球', '民兵打靶'], ['喜從天降', '天上掉餡餅'],
   ['機車', '幸福摩托'], ['汽車', '上海轎車'], ['工程車', '解放卡車'], ['旅館', '招待所'], ['購物中心', '供銷社'], ['加油站', '宣傳站'], ['公園', '人民公園'],
   // 简体
+  ['股票', '认购券'],
   ['乐透', '有奖销售'], ['卡片屋', '票证兑换点'], ['点券', '票证'], ['监狱', '牛棚'], ['坐牢', '关牛棚'], ['医院', '反帝医院'], ['银行', '人民银行'],
   ['新闻', '广播站'], ['占卜师', '神婆'], ['探监', '探牛棚'], ['股市', '内部认购'], ['买进', '认购'], ['卖出', '转让'], ['企鹅挖宝', '挖红薯'], ['七彩气球', '民兵打靶'],
   ['机车', '幸福摩托'], ['汽车', '上海轿车'], ['工程车', '解放卡车'], ['旅馆', '招待所'], ['购物中心', '供销社'], ['公园', '人民公园'],
@@ -67,7 +74,8 @@ const LINES: Record<string, string> = {
   '董事長慢走！': '同志慢走！',
   // 跳大神 (the magic house)
   '進來魔法屋，就得\n完全照我的指示！': '噓，別讓人看見……\n進來就得聽我的！',
-  '天靈靈地靈靈∼': '天靈靈地靈靈∼\n破四舊可別說出去！',
+  // (its first line must not be a key itself: the page's text pass would add the second line again)
+  '天靈靈地靈靈∼': '天靈靈，地靈靈∼\n破四舊可別說出去！',
   '你來決定他們的命運∼': '你來決定\n他們的下場∼',
   // the fate board's title (only the whole word: 「命運」 inside a sentence keeps its meaning)
   '命運': '大字報',
@@ -121,8 +129,26 @@ export function eraText(s: string): string {
   if (line !== undefined) return s.replace(t, line);
   let out = s;
   for (const [re, to] of ADDRESS) out = out.replace(re, to as string);
-  return out.replace(RE, w => MAP.get(w) ?? w);
+  // A word whose era form contains it (工程費 → 基建工程費) stays as it is where that form already stands: the page's text
+  // is rewritten again every time it changes (by this pass and by 简体's), so a rename must come to rest. It used to
+  // grow 「基建基建基建…工程费」 for good in 简体, and the page froze (issue #9, the construction company's fee).
+  return out.replace(RE, (w: string, at: number, all: string) => {
+    const v = MAP.get(w) ?? w, i = v.indexOf(w);
+    return i >= 0 && all.startsWith(v, at - i) ? w : v;
+  });
 }
+
+/**
+ * Whether a renamed text comes to rest: renaming it again — after 简体 has converted it, when that is on — changes
+ * nothing. A rename that would not is left out (logged once) rather than rewriting the page without end.
+ */
+function settles(t: string): boolean {
+  const h = toHans(t);
+  if (eraText(h) === h) return true;
+  if (!warned.has(t)) { warned.add(t); console.warn('[jq-theme] a rename that never comes to rest, left out:', JSON.stringify(t.slice(0, 80))); }
+  return false;
+}
+const warned = new Set<string>();
 
 const ATTRS = ['title', 'aria-label', 'alt', 'placeholder'];
 /** The yes / no buttons' words (「YES 是」 / 「NO 否」, 「是」 / 「否」) as 「同意」 / 「不同意」. */
@@ -134,13 +160,13 @@ function fixText(n: Text) {
   const btn = n.parentElement?.closest('button.candy.yes, button.candy.no');
   const yn = btn ? YES_NO.find(([re]) => re.test(s.trim())) : undefined;
   const t = yn ? s.replace(s.trim(), yn[1]) : eraText(s);
-  if (t !== s) n.data = t;
+  if (t !== s && (yn || settles(t))) n.data = t;
 }
 function fixAttr(e: Element, a: string) {
   const s = e.getAttribute(a);
   if (!s) return;
   const t = eraText(s);
-  if (t !== s) e.setAttribute(a, t);
+  if (t !== s && settles(t)) e.setAttribute(a, t);
 }
 function fixTree(root: Node) {
   if (root.nodeType === Node.TEXT_NODE) { fixText(root as Text); return; }

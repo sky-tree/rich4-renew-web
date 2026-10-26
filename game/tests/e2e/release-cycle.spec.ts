@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, readdirSync, symli
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer } from 'node:net';
-import { saveViaUi, loadViaUi, startMatch, snapshot, rollAndObserve } from './gameplay-helper';
+import { expectRestoredSnapshot, saveViaUi, loadViaUi, startMatch, snapshot, rollAndObserve } from './gameplay-helper';
 import { retainEvidence, setupDiagnostics } from './e2e-helper';
 
 test.use({ trace: 'off', video: 'off' });
@@ -90,7 +90,7 @@ test('real Nginx A -> B -> A updates the SW shell and preserves a UI save', asyn
       await page.reload({ waitUntil: 'domcontentloaded' });
       await expect(page.locator('meta[name="candidate"]')).toHaveAttribute('content', version);
       await loadViaUi(page);
-      expect(await snapshot(page)).toEqual(saved);
+      expectRestoredSnapshot(await snapshot(page), saved);
       expect(await page.evaluate(() => caches.has('unrelated-app-cache'))).toBe(true);
       const release = await (await page.request.get('./release-manifest.json')).json();
       expect(release.buildId).toBe(version);

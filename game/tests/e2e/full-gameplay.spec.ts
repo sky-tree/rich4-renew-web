@@ -2,14 +2,14 @@ import { expect, test } from '@playwright/test';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { assertCleanBoot, saveFailureEvidence, setupDiagnostics } from './e2e-helper';
-import { loadViaUi, rollAndObserve, saveViaUi, snapshot, startMatch, storedSlot } from './gameplay-helper';
+import { expectRestoredSnapshot, loadViaUi, rollAndObserve, saveViaUi, snapshot, startMatch, storedSlot } from './gameplay-helper';
 
 const HAS_ASSETS = existsSync(fileURLToPath(new URL('../../public/assets/maps/maps.json', import.meta.url)));
 
 test.describe('Production gameplay and UI save/restore', () => {
   test.skip(!HAS_ASSETS && !process.env.E2E_REMOTE_ASSETS, 'Private full assets are required');
 
-  test('UI save -> refresh -> UI load -> exact state -> continue rolling', async ({ page }, testInfo) => {
+  test('UI save -> refresh -> UI load -> preserved state with fresh dice -> continue rolling', async ({ page }, testInfo) => {
     test.setTimeout(90000);
     const diag = setupDiagnostics(page);
     try {
@@ -22,8 +22,8 @@ test.describe('Production gameplay and UI save/restore', () => {
       expect(savedState).toEqual(before);
       await page.reload();
       await loadViaUi(page);
-      // Includes every player field, board, module, RNG, date, settings and statistics.
-      expect(await snapshot(page)).toEqual(before);
+      // Includes every player field, board, module, date, settings and statistics; future dice are reshuffled.
+      expectRestoredSnapshot(await snapshot(page), before);
       await rollAndObserve(page);
       await assertCleanBoot(page, diag);
     } finally {
@@ -42,7 +42,7 @@ test.describe('Production gameplay and UI save/restore', () => {
       await page.locator('button[data-act="load"]').click();
       await page.locator('.slot-row').filter({ has: page.locator('.slot-badge', { hasText: /^AUTO$/ }) }).first().click();
       await expect(page.locator('.go')).toBeVisible({ timeout: 30000 });
-      expect(await snapshot(page)).toEqual(before);
+      expectRestoredSnapshot(await snapshot(page), before);
       await rollAndObserve(page);
       await assertCleanBoot(page, diag);
     } finally {

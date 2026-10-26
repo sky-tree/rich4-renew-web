@@ -195,6 +195,8 @@ export class BoardView {
       } catch (e) { this.oops('tick', e); }
       this.alpha = Math.min(1, acc / this.tickMs);
       this.fx.alpha = this.alpha;
+      // About twice a second: the canvas's pixels still match its size on screen (see `backingStale`).
+      if (++this.checks % 30 === 0 && this.backingStale()) this.resize();
       try { this.draw(); } catch (e) { this.oops('draw', e); }
     };
     requestAnimationFrame(loop);
@@ -212,7 +214,7 @@ export class BoardView {
   // ---------- geometry ----------
 
   private resize() {
-    const r = this.canvas.getBoundingClientRect();
+    const r = this.size();
     // At most 2×: a phone's 3× canvas has 2.25 times the pixels to fill every frame for no visible gain.
     this.dpr = Math.min(2, window.devicePixelRatio || 1);
     this.W = Math.max(1, r.width); this.H = Math.max(1, r.height);
@@ -227,6 +229,29 @@ export class BoardView {
     // flashed black every step (the user, the Windows build). Drawn again at once instead (the observer runs before
     // the browser paints).
     if (changed && this.alive && this.looping) { try { this.draw(); } catch (e) { this.oops('draw', e); } }
+  }
+
+  private checks = 0;
+  /**
+   * The canvas's pixels no longer match its size on screen (or the screen's pixel ratio): it is then shown
+   * stretched — the whole map blurry — until the next resize. The resize observer only reports a change of the
+   * element's size, so a size taken at an unlucky moment (iPad, issue #10: blurry after a fate board until the save
+   * was loaded again) stayed; the frame loop checks it now and then.
+   */
+  private backingStale(): boolean {
+    const r = this.size();
+    if (!r.width || !r.height) return false; // hidden: nothing to match
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    return Math.abs(this.canvas.width - r.width * dpr) > 1.5 || Math.abs(this.canvas.height - r.height * dpr) > 1.5;
+  }
+
+  /**
+   * The canvas's size in CSS px as laid out: the bounding box (fractional), unless a transform on the way up
+   * scales it (a zooming intro, an animation caught mid-way), which the layout size leaves out.
+   */
+  private size(): { width: number; height: number } {
+    const r = this.canvas.getBoundingClientRect(), w = this.canvas.offsetWidth, h = this.canvas.offsetHeight;
+    return Math.abs(r.width - w) > 1 || Math.abs(r.height - h) > 1 ? { width: w, height: h } : r;
   }
 
   private basis() {
@@ -777,6 +802,9 @@ export class BoardView {
    * replaced, or frames that stop coming, end the wait (the camera is then put on the spot).
    */
   panTo(x: number, y: number): Promise<void> {
+    // 鏡頭跟隨「少動」(issue #11): a spot already well inside the view is shown where it is, the camera stays on the
+    // actor; only farther spots (a missile's target, another street) are travelled to.
+    if (this.calm && this.alive && this.nearCentre(x, y)) return Promise.resolve();
     this.follow = null;
     return watch('view.panTo', new Promise<void>(resolve => {
       let over = false;
@@ -789,6 +817,16 @@ export class BoardView {
       }, 1200);
       if (!this.alive || !this.startGlide(() => ({ x, y }), 450, finish)) { this.cam.x = x; this.cam.y = y; this.keepOnBoard(); finish(); }
     }));
+  }
+
+  /** 鏡頭跟隨: false 標準 (every effect's spot is centred, as in the original), true 少動 (see panTo). */
+  calm = false;
+
+  /** Whether a world point shows in the middle part of the view now (where a 440×440 clip round it still fits). */
+  private nearCentre(x: number, y: number): boolean {
+    const { a, b, c, d } = this.basis(), dx = x - this.cam.x, dy = y - this.cam.y;
+    const u = a * dx + c * dy, v = b * dx + d * dy;
+    return Math.abs(u) <= this.W * 0.3 && v >= -this.H * 0.3 && v <= this.H * 0.25;
   }
 
   /** Camera waits by game speed (慢 1 … 快 0.5 of the time). */
@@ -1373,8 +1411,9 @@ export class BoardView {
   private moveCamera() {
     const now = performance.now(), dt = this.lastDraw ? Math.min(100, now - this.lastDraw) : 16.7;
     this.lastDraw = now;
-    // The same easing per 60th of a second as before (0.2 and 0.25 of the way), whatever the frame rate.
-    this.fy += (this.focusY - this.fy) * (1 - Math.pow(0.8, dt / 16.7));
+    // The same easing per 60th of a second whatever the frame rate: the camera 0.25 of the way; the dialog offset
+    // 0.1 (0.2 until issue #11: the map slid up for a box too quickly).
+    this.fy += (this.focusY - this.fy) * (1 - Math.pow(0.9, dt / 16.7));
     const g = this.glide;
     if (g) {
       const to = g.to(), u = Math.min(1, (now - g.t0) / g.ms);
