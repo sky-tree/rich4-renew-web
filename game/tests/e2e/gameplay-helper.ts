@@ -26,6 +26,15 @@ export async function snapshot(page: Page) {
   return state;
 }
 
+/** v0.7.1 intentionally reshuffles future dice on UI load; every other saved field must be restored exactly. */
+export function expectRestoredSnapshot(actual: Awaited<ReturnType<typeof snapshot>>, saved: Awaited<ReturnType<typeof snapshot>>) {
+  const { rng, rngSalt, ...game } = actual.game;
+  const { rng: _oldRng, rngSalt: _oldSalt, ...savedGame } = saved.game;
+  expect(Number.isInteger(rngSalt) && rngSalt! > 0 && rngSalt! <= 0xffffffff).toBe(true);
+  expect(Number.isInteger(rng) && rng >= 0 && rng <= 0xffffffff).toBe(true);
+  expect({ ...actual, game }).toEqual({ ...saved, game: savedGame });
+}
+
 export async function storedSlot(page: Page, slot: number): Promise<SaveData | null> {
   return page.evaluate(id => new Promise<SaveData | null>((resolve, reject) => {
     const request = indexedDB.open('rich4');

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { loadViaUi, saveViaUi, snapshot, startMatch } from './gameplay-helper';
+import { expectRestoredSnapshot, loadViaUi, saveViaUi, snapshot, startMatch } from './gameplay-helper';
 import { retainEvidence } from './e2e-helper';
 
 const HAS_ASSETS = existsSync(fileURLToPath(new URL('../../public/assets/maps/maps.json', import.meta.url)));
@@ -39,7 +39,8 @@ test.describe('Production renderer composition and fallback', () => {
     await retainEvidence(testInfo, 'canvas-baseline.png', await page.locator('canvas.board').screenshot(), 'image/png');
     await page.goto('./?renderer=webgl');
     await loadViaUi(page);
-    expect(await snapshot(page)).toEqual(state);
+    const restored = await snapshot(page);
+    expectRestoredSnapshot(restored, state);
     await expect.poll(() => page.evaluate(() => (window as any).__rich4Perf().backend)).toBe('webgl');
     const alphas = await page.locator('canvas.board').evaluate((canvas: HTMLCanvasElement) => {
       const ctx = canvas.getContext('2d')!;
@@ -49,7 +50,8 @@ test.describe('Production renderer composition and fallback', () => {
       }
       return { enabled: ctx.getContextAttributes().alpha, alphas };
     });
-    expect(alphas.enabled).toBe(true);
+    // WebKit may omit alpha in getContextAttributes(); the sampled transparent pixels below are authoritative.
+    if (alphas.enabled !== undefined) expect(alphas.enabled).toBe(true);
     expect(alphas.alphas.filter(a => a === 0).length).toBeGreaterThan(180);
     const composed = await page.locator('canvas.board').screenshot();
     await retainEvidence(testInfo, 'webgl-composed.png', composed, 'image/png');
@@ -68,7 +70,7 @@ test.describe('Production renderer composition and fallback', () => {
     await expect.poll(() => page.evaluate(() => (window as any).__rich4Perf().backend)).toBe('canvas');
     await expect(page.locator('canvas.webgl-backend')).toHaveCount(0);
     await expectVisibleBoard(page);
-    expect(await snapshot(page)).toEqual(state);
+    expect(await snapshot(page)).toEqual(restored);
   });
 
   test('WebGL creation failure keeps the original playable Canvas board', async ({ page }) => {

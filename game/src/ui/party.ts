@@ -136,7 +136,7 @@ export function openParty(d: PartyDeps): void {
     };
     r.onLobby = () => { render(); if (r.members[0]?.id === r.myId) lobby?.announce(info(r)); };
     r.onVotes = () => render();
-    r.onStatus = t => { if (t && !r.started && r.kicked || t && !r.started && /滿/.test(t)) { audio.ui('error'); home(`<p class="pt-err">${esc(t)}</p>`); box.onclick = menu; } };
+    r.onStatus = t => { if (t && !r.started && (r.kicked || r.refused || /滿/.test(t))) { audio.ui('error'); home(`<p class="pt-err">${esc(t)}</p>`); box.onclick = menu; } };
     r.onStart = (s: StartMsg) => { lobby?.close(); lobby = null; overlay.remove(); d.play(s.settings, r); };
     render();
     box.onclick = e => {

@@ -36,6 +36,41 @@ export function timeout<T>(p: Promise<T>, ms: number, fallback: T | (() => T)): 
   });
 }
 
+/** Whether the page is in the background (animations, frames and most timers stand still then). */
+const pageHidden = () => typeof document !== 'undefined' && document.hidden;
+
+/**
+ * The last line of defence for one thing the controller shows (an effect, a screen, a camera move …): settles with `p`,
+ * or — when `p` has not settled after `limit()` ms of time the page was in front (a hidden page pauses animations, so
+ * that time does not count) — logs `[watchdog] gave up …`, calls `onGiveUp` (finish / close what is stuck) and settles
+ * with `fallback`, so one stuck animation can never freeze the game for good (an error of `p` still rejects). `limit`
+ * is read on every check (it may grow, say while a human plays the screen). Aborting retires the wait without
+ * rescuing a later screen (the party clock or host may have already answered this question).
+ */
+export function guard<T>(label: string, p: Promise<T>, limit: () => number, fallback: T, onGiveUp?: (label: string, ms: number) => void, tick = 250, signal?: AbortSignal): Promise<T> {
+  const guarded = new Promise<T>((resolve, reject) => {
+    let done = false, shown = 0, last = performance.now();
+    const off = () => { clearInterval(timer); signal?.removeEventListener('abort', abort); };
+    const settle = (v: T) => { if (done) return; done = true; off(); resolve(v); };
+    const fail = (e: unknown) => { if (done) return; done = true; off(); reject(e); };
+    const abort = () => settle(fallback);
+    const timer = setInterval(() => {
+      const now = performance.now(), dt = Math.min(now - last, 4 * tick);
+      last = now;
+      if (done || pageHidden()) return;
+      shown += dt;
+      if (shown < limit()) return;
+      console.warn(`[watchdog] gave up waiting for "${label}" after ${Math.round(shown / 1000)} s`, JSON.stringify(outstanding()));
+      settle(fallback);
+      try { onGiveUp?.(label, shown); } catch (e) { console.warn('[watchdog] give-up rescue failed', e); }
+    }, tick);
+    p.then(settle, fail);
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort();
+  });
+  return watch(`guard ${label}`, guarded);
+}
+
 export class Watchdog {
   /** Steps the controller took (every engine event, every answer). */
   seq = 0;

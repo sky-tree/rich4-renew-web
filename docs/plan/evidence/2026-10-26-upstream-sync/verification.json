@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-26",
+  "branch": "sync/upstream-v0.7.8-web",
+  "baseline": "b0dd370",
+  "upstream": "4795342",
+  "node": "v22.23.4",
+  "rulesChanged": false,
+  "saveSchemaChanged": false,
+  "partyProtocol": 2,
+  "partyRules": "web-v0.7.1",
+  "deployed": false,
+  "checks": {
+    "vitest": {
+      "files": 73,
+      "passed": 609,
+      "skipped": 0
+    },
+    "typescript": "passed",
+    "codeBuild": "passed",
+    "webCodeChecks": 20,
+    "webFullLocalChecks": 20,
+    "codeSmoke": 6,
+    "assetFiles": 37297,
+    "missingAssets": 0,
+    "browserScenarios": {
+      "desktopChromium": 8,
+      "mobileChromium": 8,
+      "webkit": 8,
+      "note": "Initial WebKit alpha-attribute assertion failed; actual transparency/composition assertions retained and WebKit renderer 2-test rerun passed."
+    },
+    "pwaCycle": {
+      "result": "isolated rerun passed",
+      "initialFailure": "B to A: Worker stuck at installed; no Worker source changes"
+    }
+  },
+  "notRun": [
+    "iPad Safari physical device/Siri/low memory long test",
+    "three physical devices with at least 20 lockstep operations",
+    "historical production PWA and historical real save fixtures",
+    "VPS preview deployment"
+  ],
+  "limitations": [
+    "WebKit is desktop automation, not physical iPad validation",
+    "local Nginx uses generated A/B candidate shells, not historical release binaries",
+    "asset audit covers existing private local assets, not upstream latest asset archive"
+  ]
+}

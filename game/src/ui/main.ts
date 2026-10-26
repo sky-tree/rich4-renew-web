@@ -13,7 +13,7 @@ import { GoButton, Toolbar } from './controls';
 import { Calendar, PlayerPanel, SideToday } from './side';
 import { Minimap } from './minimap';
 import { InfoScreen } from './info';
-import { askScreens, fxScreens } from './screens/registry';
+import { askScreens, closeStuckScreens, fxScreens } from './screens/registry';
 import { PartyBar } from './party-chat';
 import { openParty } from './party';
 import { Lobby, type Room } from './party-net';
@@ -24,7 +24,7 @@ import { audio, BGM, Sfx, Theme } from './audio';
 import { holidayMusic } from './holidays';
 import { applyOrientation, orientationMode, ORIENTATIONS, setOrientation } from './orientation';
 import { GROUND_STYLES, groundIndex, groundStyle, groundStylesFor, setGroundStyle, TiledGround } from './ground';
-import { Watchdog } from './watchdog';
+import { guard, Watchdog } from './watchdog';
 import { preloadClips } from './effects';
 import { LoadingScreen } from './loading';
 import { preloadBoard } from './board-preload';
@@ -209,11 +209,27 @@ const MINI_GAME_MODES = ['親自玩', '自動結算'];
 const AUTO_BUY_KEY = 'rich4.autobuy', AUTO_BUY_MODES = ['關', '開'];
 const AUTO_BUY_KINDS = new Set(['buy-land', 'upgrade-land', 'buy-facility', 'upgrade-facility']);
 const autoBuy = () => { try { return localStorage.getItem(AUTO_BUY_KEY) === '1'; } catch { return false; } };
+/** 鏡頭跟隨 (issue #11): 0 標準 (default), 1 少動 (BoardView.calm: effects on screen are shown without moving there). */
+const CAMERA_MODES = ['標準', '少動'];
+const CAMERA_KEY = 'rich4.camera';
+const cameraMode = () => { try { return localStorage.getItem(CAMERA_KEY) === '1' ? 1 : 0; } catch { return 0; } };
+/** Below the camera point, as a fraction of the view's height, that a dialog must leave free (the actor's feet, a ring). */
+const FOCUS_CLEAR = 0.08;
 const miniGameMode = () => { try { return Number(localStorage.getItem('rich4.minigame') ?? 0) === 1 ? 1 : 0; } catch { return 0; } };
 
 /**
+ * The rows of 系統 / 設定: a cell per setting (its label, then its chips). The cell is `display: contents` (label and
+ * chips sit in the grid's own columns) except on a portrait phone, where two cells share a line, each label above its
+ * chips (style.css).
+ */
+function sysRowsHtml(rows: { label: string; opts: string[]; cur: () => number; even?: boolean; wide?: boolean; nozh?: boolean }[]): string {
+  return rows.map((r, n) => `<div class="cell${r.wide ? ' w' : ''}${r.even ? ' even' : ''}"><b${r.wide ? ' class="w"' : ''}>${r.label}</b><div class="chips${r.even ? ' even' : ''}${r.wide ? ' w' : ''}"${r.nozh ? ' data-nozh' : ''}>${r.opts.map((o, i) =>
+    `<button class="chip${r.cur() === i ? ' on' : ''}" data-row="${n}" data-v="${i}">${o}</button>`).join('')}</div></div>`).join('');
+}
+
+/**
  * Speed, right-column layout and the mini games, kept for every game (RICH4.CFG in the original): the same compact
- * window as the in-game 系統 (a row per setting, two columns on a landscape phone, one page, no scrolling).
+ * window as the in-game 系統 (a row per setting, two columns on a landscape screen, one page, no scrolling).
  */
 function options() {
   const read = (k: string) => { try { return Number(localStorage.getItem(k) ?? 0); } catch { return 0; } };
@@ -228,6 +244,7 @@ function options() {
       stored('右側', 'rich4.layout', ['日曆', '小地圖', '全部']),
       stored('小遊戲', 'rich4.minigame', MINI_GAME_MODES),
       stored('自動買地', AUTO_BUY_KEY, AUTO_BUY_MODES),
+      stored('鏡頭跟隨', CAMERA_KEY, CAMERA_MODES),
       { label: '畫面', opts: ORIENTATIONS, cur: () => orientationMode(), pick: i => { write('rich4.orientation', i); void applyOrientation(); } },
       { label: '天氣', opts: [...WEATHER_MODES], cur: () => weatherMode(), pick: i => write('rich4.weather', i) },
       // 歌舞伎町's living street (docs/rules/21 §8): kept for every game, used on that map only.
@@ -259,8 +276,7 @@ function options() {
   let current: Row[] = [];
   function render() {
     current = rows();
-    grid.innerHTML = current.map((r, n) => `<b${r.wide ? ' class="w"' : ''}>${r.label}</b><div class="chips${r.even ? ' even' : ''}${r.wide ? ' w' : ''}"${r.nozh ? ' data-nozh' : ''}>${r.opts.map((o, i) =>
-      `<button class="chip${r.cur() === i ? ' on' : ''}" data-row="${n}" data-v="${i}">${o}</button>`).join('')}</div>`).join('');
+    grid.innerHTML = sysRowsHtml(current);
     fit();
   }
   /** A short screen: shrink the whole window rather than scroll it. */
@@ -681,8 +697,16 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
     const c = view.canvas.getBoundingClientRect(), a = stage.getBoundingClientRect();
     return { x: q.x + c.left - a.left, y: q.y + c.top - a.top, zoom: q.zoom };
   };
-  // Keep the actor above an open dialog: put the camera point midway in the visible strip.
-  hud.onModal = top => { view.focusY = top === null ? 0.5 : Math.min(0.5, Math.max(0.2, top * 0.55)); };
+  // Keep the actor above an open dialog: put the camera point midway in the visible strip — only when the box would
+  // cover it (issue #11: a message at the bottom slid the map up and back for every box), and a box closing with the
+  // next one opening right after leaves it where it is instead of back and forth.
+  let focusBack: ReturnType<typeof setTimeout> | undefined;
+  hud.onModal = top => {
+    clearTimeout(focusBack);
+    if (top === null) { focusBack = setTimeout(() => { view.focusY = 0.5; }, 350); return; }
+    view.focusY = top >= 0.5 + FOCUS_CLEAR ? 0.5 : Math.min(0.5, Math.max(0.2, top * 0.55));
+  };
+  view.calm = cameraMode() === 1;
   // Game speed 0/1/2: the original ticks every 120/80/40 ms (docs/rules/08 §2.3); the remake runs the board
   // twice as fast (60/40/20 ms) and keeps message boxes and pauses at the original's times (`wait`), so text
   // stays readable.
@@ -705,6 +729,11 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
   /** State at the open turn menu: what a save stores (loading resumes at that menu). */
   let turnSave: SaveData | null = null;
   let lastAuto = '';
+  /**
+   * The dice picked on GO before a card / tool / stock action in the same turn: the turn menu opens again with that
+   * choice instead of the player's last roll's count (the user 2026-10-26: picked 1, used 路障, GO showed 3 again).
+   */
+  let keptDice: { key: string; dice: number } | null = null;
   // Going to the background at the turn menu stores that turn again (the app may be closed or crash out there).
   const saveOnHide = () => {
     if (me !== session) { document.removeEventListener('visibilitychange', saveOnHide); return; }
@@ -765,6 +794,10 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
             try { localStorage.setItem('rich4.minigame', String(i)); } catch { /* not kept */ }
           } },
           { label: '自動買地', opts: AUTO_BUY_MODES, cur: () => (autoBuy() ? 1 : 0), pick: i => { try { localStorage.setItem(AUTO_BUY_KEY, String(i)); } catch { /* not kept */ } } },
+          { label: '鏡頭跟隨', opts: CAMERA_MODES, cur: () => cameraMode(), pick: i => {
+            try { localStorage.setItem(CAMERA_KEY, String(i)); } catch { /* not kept */ }
+            view.calm = i === 1;
+          } },
           { label: '畫面', opts: ORIENTATIONS, cur: () => orientationMode(), pick: i => void setOrientation(i) },
           { label: '天氣', opts: [...WEATHER_MODES], cur: () => weatherMode(), pick: i => { setWeatherMode(i); hud.refresh(); } },
           // 歌舞伎町's living street (docs/rules/21 §8).
@@ -802,8 +835,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
         const grid = document.createElement('div');
         grid.className = 'sys-grid';
         const render = () => {
-          grid.innerHTML = rows.map((r, n) => `<b${r.wide ? ' class="w"' : ''}>${r.label}</b><div class="chips${r.even ? ' even' : ''}${r.wide ? ' w' : ''}"${r.nozh ? ' data-nozh' : ''}>${r.opts.map((o, i) =>
-            `<button class="chip${r.cur() === i ? ' on' : ''}" data-row="${n}" data-v="${i}">${o}</button>`).join('')}</div>`).join('');
+          grid.innerHTML = sysRowsHtml(rows);
         };
         grid.addEventListener('click', e => {
           const c = (e.target as HTMLElement).closest<HTMLElement>('[data-row]');
@@ -927,6 +959,31 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
   wd.start();
   (window as unknown as { __rich4: Record<string, unknown> }).__rich4.watch = () => wd.report();
   const stopWatch = () => { wd.stop(); };
+  // The last line of defence (issue #9: 「觸發事件時經常卡死…音效重複播放，界面可以點擊，但事件無法結算」): every effect,
+  // screen and camera move an event shows is awaited through `shown`, which gives up on it after a generous time the
+  // page was in front (a slow phone decoding pictures still has plenty; 3× while a human is the one the screen waits
+  // for). Giving up logs it, finishes what the view holds, closes screens left open and stops looping sounds, and the
+  // game goes on with the next event — the rules never wait on the screen, so nothing of the game is lost.
+  const LONG_FX = new Set(['month-report', 'auction', 'auction-end', 'lottery-draw', 'dividends', 'finale-start', 'finale-blinds',
+    'casino-result', 'tycoon-title', 'travel-onway', 'travel-depart', 'magic']);
+  const limitFor = (long: boolean) => () => (long ? 150000 : 40000) * (0.5 + scale()) * (wd.human ? 3 : 1);
+  /** The screens over the map or the whole game screen (an event's own, the wheel, the films …). */
+  const overlays = () => [...shell.querySelectorAll<HTMLElement>('.fx-overlay, .pl-scene, .tc')];
+  const shown = <T,>(label: string, start: () => Promise<T>, fallback: T, long = false, signal?: AbortSignal): Promise<T> => {
+    const before = new Set(overlays());
+    return guard(label, start(), limitFor(long), fallback, () => {
+      if (me !== session) return;
+      view.unstick();
+      quiet();
+      audio.stopLoops();
+      audio.stopVoice();
+      closeStuckScreens();
+      hud.dismiss();
+      // What this event opened and never closed would cover the next screens (and take their taps): taken down.
+      for (const el of overlays()) if (!before.has(el)) el.remove();
+    }, 250, signal);
+  };
+
   // 大富豪模式 (docs/rules/17 §10): the world bar (city, rivals left, the other cities' ticker; tap for the log).
   const bar = ty ? new WorldBar(ty.world) : null;
   const chat = ty ? new ChatBox(ty.world, bank) : null;
@@ -959,13 +1016,16 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
       return game.players.every(q => q === me2 || q.bankrupt || !q.whoPlays || game.wealth(q) < w);
     };
     room.onStatus = t => {
-      if (room.kicked) {
+      if (room.kicked || room.refused) {
         // Its own notice over everything (a box could queue behind the game's), then back to the title.
         const out = document.createElement('div');
         out.className = 'pt-out';
-        out.innerHTML = '<div class="msg"><div class="msg-text">你已被投票請出房間<br>返回標題畫面…</div></div>';
+        const message = document.createElement('div');
+        message.className = 'msg';
+        message.textContent = `${room.kicked ? '你已被投票請出房間' : t}\n返回標題畫面…`;
+        out.append(message);
         document.body.append(out);
-        setTimeout(() => location.reload(), 2500);
+        setTimeout(() => location.reload(), room.kicked ? 2500 : 6000);
         return;
       }
       if (t) { waiting.textContent = t; waiting.hidden = false; } else waiting.hidden = true;
@@ -1056,10 +1116,10 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
     // One event a screen cannot show (say, a player still on another city's square) is skipped and logged; it must
     // never stop the game (the user lost games to that: 小財神's payers, a summoned rival).
     try {
-    await losses.before(s);
+    await shown('losses', () => losses.before(s), undefined);
     wd.beat('ask' in s ? `ask:${s.t}` : s.t === 'fx' ? `fx:${s.kind}` : s.t);
     if (!('ask' in s) && (s.t === 'step' || s.t === 'actor-step')) {
-      await director.idle();
+      await shown('director.idle', () => director.idle(), undefined);
       if (s.t === 'actor-step') director.actorStep(s);
       const id = s.t === 'step' ? s.p : s.actor;
       walking.add(id);
@@ -1067,7 +1127,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
       view.stepsLeft = s.t === 'step' ? s.left + 1 : null;
       const speedPx = s.t === 'step' ? SPEED[game.players[s.p].traffic & 3] : 8;
       moveSound(id, s.to);
-      await view.move(id, s.to, s.dir, speedPx);
+      await shown(`view.move ${id}`, () => view.move(id, s.to, s.dir, speedPx), undefined);
       view.stepsLeft = s.t === 'step' ? s.left : null;
       if (s.t === 'step' && s.left === 0) {
         // Stopping on a special square (E 2..16) first plays its sound (core_actions:322-345, table 0x475299):
@@ -1080,7 +1140,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
     }
     settle();
     if ('ask' in s) {
-      await director.idle();
+      await shown('director.idle', () => director.idle(), undefined);
       view.followActor(s.p);
       hud.refresh();
       if (room) {
@@ -1141,9 +1201,10 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
         answer = await timed(new Promise<Answer>(resolve => {
           answerTurn = resolve;
           toolbar.setTurnOpen(true);
-          go.show(p.traffic & 3, p.dice, s.maxDice, p.stay !== 0, p.turtle !== 0).then(dice => resolve({ dice }));
+          go.show(p.traffic & 3, keptDice?.key === key ? keptDice.dice : p.dice, s.maxDice, p.stay !== 0, p.turtle !== 0).then(dice => resolve({ dice }));
         }), expires(s.p), () => { go.cancel(); void hud.flash('60 秒沒有前進\n改由電腦托管（可按「取消托管」）', 2200); return { action: 'autopilot' } as Answer; }, () => { go.cancel(); hud.dismiss(); });
         answerTurn = null;
+        keptDice = answer && typeof answer === 'object' && 'dice' in answer ? null : { key, dice: go.picked() };
         wd.setHuman(false);
         view.setMode('locked');
         toolbar.setTurnOpen(false);
@@ -1214,7 +1275,18 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
         continue;
       }
       wd.setHuman(true);
-      answer = await timed(hud.ask(s) as Promise<Answer>, expires(s.p), () => { hud.dismiss(); return autoAnswer(s); });
+      // The wheel and the slot machine only want the moment of a tap (the rules stop them by themselves for anyone
+      // else): one never stopped is stopped for the player after a long while, rather than holding the game for good.
+      const spin = s.t === 'wheel' || s.t === 'slot-machine';
+      const controller = new AbortController();
+      const cancel = () => { if (spin) closeStuckScreens(); hud.dismiss(); };
+      const asked = spin ? shown(`ask ${s.t}`, () => hud.ask(s), 0 as unknown, false, controller.signal) : hud.ask(s);
+      try {
+        answer = await timed(asked as Promise<Answer>, expires(s.p), () => { cancel(); return autoAnswer(s); }, cancel);
+      } finally {
+        // A host echo or party deadline may win while the original UI promise is still pending.
+        controller.abort();
+      }
       wd.setHuman(false);
       continue;
     }
@@ -1231,7 +1303,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
       case 'airdrop':
         view.followActor(s.p);
         hud.note(`${nameOf(s.p)}降落在地圖上`, colorOf(s.p));
-        await director.airdrop(s);
+        await shown('airdrop', () => director.airdrop(s), undefined);
         view.place(s.p, s.node);
         await pause(200);
         break;
@@ -1239,7 +1311,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
         view.place(s.p, s.node);
         view.syncAll(); // the facing on arrival (the exit closest to the old one) shows at once
         // The camera goes along to where they land (docs/rules/11 §7.1), then back to the one whose turn it is.
-        await director.teleported(s.p, s.node);
+        await shown('teleported', () => director.teleported(s.p, s.node), undefined);
         await pause(300);
         view.unmark();
         view.refollow();
@@ -1247,7 +1319,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
       case 'dice':
         view.followActor(s.p);
         hud.note(`${nameOf(s.p)}擲出 ${s.values.join(' + ')}`, colorOf(s.p));
-        await view.dice(s.p, s.values);
+        await shown('view.dice', () => view.dice(s.p, s.values), undefined);
         break;
       case 'buy': {
         const thing = s.kind === 'land' ? game.board.lands[s.id - 1].name : game.board.facilities[s.id - 1].name;
@@ -1255,7 +1327,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
         audio.sfx(Sfx.buyLand);
         hud.refresh();
         await pause(500);
-        await director.buy(s);
+        await shown('buy', () => director.buy(s), undefined);
         break;
       }
       case 'build': {
@@ -1264,7 +1336,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
         audio.sfx(Sfx.build);
         hud.refresh();
         await pause(500);
-        await director.build(s);
+        await shown('build', () => director.build(s), undefined);
         break;
       }
       case 'pay': {
@@ -1280,17 +1352,17 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
           // 大富豪模式: a payer in another city (小財神's eleven rivals) has no square on this map.
           const payer = game.players[s.from], n = game.here(payer) ? game.node(payer.node) : undefined;
           view.highlight = n && n.ref > 2000 && n.ref < 4000 ? n.ref - 2001 : null;
-          await hud.flash(toPot ? `${from}\n\n${s.reason}\n${s.amount.toLocaleString()} 元` : `${from}付給${to}\n\n${s.reason}\n${s.amount.toLocaleString()} 元`, 1300);
+          await shown('pay box', () => hud.flash(toPot ? `${from}\n\n${s.reason}\n${s.amount.toLocaleString()} 元` : `${from}付給${to}\n\n${s.reason}\n${s.amount.toLocaleString()} 元`, 1300), undefined);
           view.highlight = null;
         }
         hud.refresh();
-        await director.pay(s);
+        await shown('pay', () => director.pay(s), undefined);
         break;
       }
       case 'points':
         hud.note(`${nameOf(s.p)}得到 ${s.amount} 點券`, colorOf(s.p));
         hud.refresh();
-        if (await director.points(s)) break;
+        if (await shown('points', () => director.points(s), true)) break;
         await pause(300);
         break;
       case 'bank':
@@ -1299,15 +1371,15 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
       case 'say':
         if (!s.text) break;
         hud.note(s.log ?? s.text, s.p !== undefined && isPlayer(s.p) ? colorOf(s.p) : undefined);
-        if (await director.say(s)) break;
+        if (await shown('say', () => director.say(s), true)) break;
         // A player's line is their speech cloud (09 §6.3); anything else is the message box.
-        if (s.p !== undefined && isPlayer(s.p)) await hud.say(s.p, s.text); else await hud.flash(s.text);
+        await shown('say box', () => s.p !== undefined && isPlayer(s.p) ? hud.say(s.p, s.text) : hud.flash(s.text), undefined);
         break;
       case 'bankrupt':
         hud.note(`${nameOf(s.p)}破產了！`, colorOf(s.p));
         hud.refresh();
-        await director.bankrupt(s);
-        await hud.flash(`${nameOf(s.p)}破產了！`, 1800);
+        await shown('bankrupt', () => director.bankrupt(s), undefined);
+        await shown('bankrupt box', () => hud.flash(`${nameOf(s.p)}破產了！`, 1800), undefined);
         break;
       case 'day':
         // Holiday music counts its days down, then today's holiday may start (fcn_0041cf67 / fcn_00452444).
@@ -1324,25 +1396,26 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
         if (fxScreens[s.kind]) {
           if (typeof s.data?.text === 'string') hud.note(s.data.text, s.p !== undefined && isPlayer(s.p) ? colorOf(s.p) : undefined);
           hud.refresh();
-          await director.idle();
+          await shown('director.idle', () => director.idle(), undefined);
           // A screen a human plays (the slot machine's lever, a mini game) waits for them; a computer's runs alone.
           const actor = s.p !== undefined && isPlayer(s.p) ? game.players[s.p] : undefined;
-          await director.locate(s);
+          await shown(`locate ${s.kind}`, () => director.locate(s), undefined);
           wd.setHuman(!!actor && game.isHuman(actor));
-          await fxScreens[s.kind](hud.context(shell), s);
+          await shown(`screen ${s.kind}`, () => fxScreens[s.kind](hud.context(shell), s), undefined, LONG_FX.has(s.kind));
           wd.setHuman(false);
           hud.refresh();
-          await director.after(s);
+          await shown(`after ${s.kind}`, () => director.after(s), undefined);
           break;
         }
-        const took = await director.fx(s);
+        const took = await shown(`fx ${s.kind}`, () => director.fx(s), true);
         if (s.kind === 'robot-doll' && s.node) view.place(game.dollId, s.node);
         if (s.kind === 'robot-doll-end') view.hide(game.dollId);
         if (typeof s.data?.text === 'string') {
           hud.note(s.data.text, s.p !== undefined && isPlayer(s.p) ? colorOf(s.p) : undefined);
           if (s.kind === 'news' || s.kind === 'fate') {
             hud.refresh();
-            await hud.board(s.kind, s.data.text, typeof s.data.id === 'number' ? s.data.id : undefined, s.kind === 'news' ? 2400 : 1800);
+            const kind = s.kind, text = s.data.text, id = typeof s.data.id === 'number' ? s.data.id : undefined;
+            await shown(`board ${kind}`, () => hud.board(kind, text, id, kind === 'news' ? 2400 : 1800), undefined);
             break;
           }
         }
@@ -1369,7 +1442,7 @@ async function begin(mapId: number, make: (board: import('../core/board').Board)
       case 'gameover':
         hud.refresh();
         quiet();
-        await director.gameover(s.winner);
+        await shown('gameover', () => director.gameover(s.winner), undefined);
         // The ending (fcn_004075c1, jump.mkf) plays MIDI07 (flag 0x8006).
         audio.theme(Theme.ending, true);
         stopWatch();
